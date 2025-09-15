@@ -1,0 +1,12 @@
+{
+  "domain": "ufanet_doorphone",
+  "name": "Ufanet Door Phone",
+  "codeowners": ["@your_github"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/your_repo/ufanet-doorphone",
+  "integration_type": "device",
+  "iot_class": "cloud_polling",
+  "requirements": ["aiohttp>=3.8.0"],
+  "version": "1.0.0"
+}
