@@ -4,9 +4,11 @@
   "codeowners": ["@your_github"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/your_repo/ufanet-doorphone",
+  "documentation": "https://github.com/your_username/hass-ufanet-doorphone",
+  "issue_tracker": "https://github.com/your_username/hass-ufanet-doorphone/issues",
   "integration_type": "device",
   "iot_class": "cloud_polling",
   "requirements": ["aiohttp>=3.8.0"],
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "loggers": ["ufanet_doorphone"]
 }

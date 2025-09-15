@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Настройка Ufanet Домофон",
+        "description": "Введите данные от личного кабинета Ufanet",
+        "data": {
+          "username": "Логин",
+          "password": "Пароль"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Не удалось подключиться к серверу Ufanet",
+      "invalid_auth": "Неверный логин или пароль",
+      "no_devices": "Домофонные устройства не найдены",
+      "unknown": "Неизвестная ошибка"
+    },
+    "abort": {
+      "already_configured": "Учетная запись уже настроена"
+    }
+  }
+}
