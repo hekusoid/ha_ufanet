@@ -6,9 +6,13 @@ import aiohttp
 from typing import Any
 from asyncio import timeout as async_timeout
 
-from .const import UFANET_API_BASE, UFANET_API_AUTH, UFANET_API_DOOR_ACTION
-
 _LOGGER = logging.getLogger(__name__)
+
+# Временные URL для тестирования
+UFANET_API_BASE = "https://httpbin.org"
+UFANET_API_AUTH = f"{UFANET_API_BASE}/post"
+UFANET_API_DEVICES = f"{UFANET_API_BASE}/get"
+UFANET_API_DOOR_ACTION = f"{UFANET_API_BASE}/post"
 
 class UfanetAuthError(Exception):
     """Authentication error."""
@@ -19,11 +23,11 @@ class UfanetConnectionError(Exception):
 class UfanetAPI:
     """API client for Ufanet Door Phone."""
     
-    def __init__(self, username: str, password: str, device_id: str):
+    def __init__(self, username: str, password: str, device_id: str = None):
         """Initialize the API client."""
         self._username = username
         self._password = password
-        self._device_id = device_id
+        self._device_id = device_id or "test_device"
         self._token = None
         self._session = None
     
@@ -42,8 +46,8 @@ class UfanetAPI:
                     }
                 ) as response:
                     if response.status == 200:
-                        data = await response.json()
-                        self._token = data.get("token")
+                        # Для тестирования возвращаем mock токен
+                        self._token = "test_token_12345"
                         return self._token
                     elif response.status in [401, 403]:
                         raise UfanetAuthError("Authentication failed")
@@ -61,17 +65,15 @@ class UfanetAPI:
         
         try:
             async with async_timeout(30):
-                async with self._session.get(
-                    f"{UFANET_API_BASE}/device/{self._device_id}/status",
-                    params={"token": self._token}
-                ) as response:
-                    if response.status == 200:
-                        return await response.json()
-                    elif response.status in [401, 403]:
-                        self._token = None  # Сбрасываем токен для повторной аутентификации
-                        raise UfanetAuthError("Token expired")
-                    else:
-                        raise UfanetConnectionError(f"Status request failed: {response.status}")
+                # Для тестирования возвращаем mock данные
+                return {
+                    "in_call": False,
+                    "door_open": False,
+                    "last_call": "2025-09-16T10:00:00",
+                    "signal_strength": 80,
+                    "battery_level": 95
+                }
+                
         except aiohttp.ClientError as err:
             raise UfanetConnectionError(f"Connection error: {err}") from err
         except asyncio.TimeoutError:
@@ -84,15 +86,10 @@ class UfanetAPI:
         
         try:
             async with async_timeout(30):
-                async with self._session.post(
-                    UFANET_API_DOOR_ACTION,
-                    json={
-                        "device_id": self._device_id,
-                        "token": self._token,
-                        "action": "open"
-                    }
-                ) as response:
-                    return response.status == 200
+                # Для тестирования всегда возвращаем успех
+                _LOGGER.debug("Simulating door open command for device %s", self._device_id)
+                return True
+                
         except aiohttp.ClientError as err:
             raise UfanetConnectionError(f"Open door error: {err}") from err
         except asyncio.TimeoutError:

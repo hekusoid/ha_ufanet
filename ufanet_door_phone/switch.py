@@ -27,8 +27,8 @@ class UfanetDoorSwitch(SwitchEntity):
         """Initialize the switch."""
         self._api = api
         self._entry = entry
-        self._attr_name = f"Ufanet Open Door"
-        self._attr_unique_id = f"{DOMAIN}_{entry.data['device_id']}_switch"
+        self._attr_name = "Ufanet Open Door"
+        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_switch"
         self._is_on = False
     
     @property

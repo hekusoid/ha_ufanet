@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ATTR_CALL_STATUS
+from .const import DOMAIN
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -29,8 +29,8 @@ class UfanetCallBinarySensor(CoordinatorEntity, BinarySensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name = f"Ufanet Door Phone Call"
-        self._attr_unique_id = f"{DOMAIN}_{entry.data['device_id']}_call"
+        self._attr_name = "Ufanet Door Phone Call"
+        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_call"
         self._attr_device_class = "occupancy"
     
     @property
@@ -45,8 +45,8 @@ class UfanetDoorBinarySensor(CoordinatorEntity, BinarySensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._entry = entry
-        self._attr_name = f"Ufanet Door Status"
-        self._attr_unique_id = f"{DOMAIN}_{entry.data['device_id']}_door"
+        self._attr_name = "Ufanet Door Status"
+        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_door"
         self._attr_device_class = "door"
     
     @property

@@ -18,6 +18,11 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SWITCH, Platform.SENSOR]
 
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the Ufanet Door Phone component."""
+    hass.data.setdefault(DOMAIN, {})
+    return True
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Ufanet Door Phone from a config entry."""
     
@@ -26,7 +31,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Получаем сохраненные учетные данные
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
-    device_id = entry.data[CONF_DEVICE_ID]
+    device_id = entry.data.get(CONF_DEVICE_ID)
     
     # Создаем API клиент
     api = UfanetAPI(username, password, device_id)
