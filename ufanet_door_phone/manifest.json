@@ -1,6 +1,6 @@
 {
   "domain": "ufanet_doorphone",
-  "name": "Ufanet Door Phone",
+  "name": "Hekus doorphone",
   "codeowners": ["@hekusoid"],
   "config_flow": true,
   "dependencies": [],
