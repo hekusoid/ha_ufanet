@@ -1,14 +1,12 @@
 {
   "domain": "ufanet_doorphone",
   "name": "Ufanet Door Phone",
-  "codeowners": ["@your_github"],
+  "codeowners": ["@hekusoid"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/your_username/hass-ufanet-doorphone",
-  "issue_tracker": "https://github.com/your_username/hass-ufanet-doorphone/issues",
+  "documentation": "https://github.com/hekusoid/ha-ufanet",
   "integration_type": "device",
   "iot_class": "cloud_polling",
   "requirements": ["aiohttp>=3.8.0"],
-  "version": "1.0.0",
-  "loggers": ["ufanet_doorphone"]
+  "version": "1.0.0"
 }

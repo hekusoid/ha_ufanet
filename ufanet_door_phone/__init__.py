@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-import asyncio
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed
@@ -15,8 +14,6 @@ from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, DEFAULT
 from .ufanet_api import UfanetAPI, UfanetAuthError, UfanetConnectionError
 
 _LOGGER = logging.getLogger(__name__)
-
-PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SWITCH, Platform.SENSOR]
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Ufanet Door Phone component."""
@@ -39,7 +36,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def async_update_data():
         """Fetch data from API endpoint."""
         try:
-            return await api.async_get_status()
+            # Простая проверка подключения
+            status = await api.async_get_status()
+            _LOGGER.debug("API status: %s", status)
+            return status
         except UfanetAuthError as err:
             raise ConfigEntryAuthFailed from err
         except UfanetConnectionError as err:
@@ -61,7 +61,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "device_id": device_id
     }
     
-    # Запускаем обновление данных
+    # Запускаем обновление данных для проверки подключения
     try:
         await coordinator.async_config_entry_first_refresh()
     except ConfigEntryAuthFailed:
@@ -70,9 +70,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         await api.async_close()
         raise ConfigEntryNotReady from err
-    
-    # Загружаем платформы
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     
     # Обработчик для закрытия соединения при остановке HA
     async def async_shutdown(event):
@@ -83,17 +80,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, async_shutdown)
     )
     
+    _LOGGER.info("Ufanet Door Phone integration setup successfully for user: %s", username)
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+    if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
         data = hass.data[DOMAIN].pop(entry.entry_id)
         await data["api"].async_close()
     
-    return unload_ok
-
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+    return True
