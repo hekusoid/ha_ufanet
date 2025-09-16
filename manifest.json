@@ -1,5 +1,5 @@
 {
-  "domain": "ufanet_doorphone",
+  "domain": "hekus_doorphone",
   "name": "Hekus doorphone",
   "codeowners": ["@hekusoid"],
   "config_flow": true,
