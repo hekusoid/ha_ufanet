@@ -1,6 +1,6 @@
 """Constants for Ufanet Door Phone integration."""
 
-DOMAIN = "ufanet_doorphone"
+DOMAIN = "hekus_doorphone"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_DEVICE_ID = "device_id"
