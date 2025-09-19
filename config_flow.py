@@ -39,9 +39,9 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
 
         
     try:
-        _LOGGER.warning('validate_credentials: пробуем получить токен')
+        self._LOGGER.warning('validate_credentials: пробуем получить токен')
         await ufanet_api._prepare_token()
-        _LOGGER.warning('validate_credentials: токен получен, закрваем апи')
+        self._LOGGER.warning('validate_credentials: токен получен, закрваем апи')
         await ufanet_api.close()
 
         device_id = "ufanet_doorphone_001"
