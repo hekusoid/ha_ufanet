@@ -8,6 +8,7 @@ import voluptuous as vol
 import aiohttp
 import asyncio
 from .api.ufanet_api import UfanetIntercomAPI
+from .api.exceptions import (BadRequestUfanetIntercomAPIError)
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -44,13 +45,15 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
         device_id = "ufanet_doorphone_001"
             
         return {
-            "title": f"Ufanet Door Phone - {username}",
+            "title": f"Домофон Ufanet (договор №{username})",
             "data": {
                 **data,
                 CONF_DEVICE_ID: device_id,
             }
         }
-            
+    except BadRequestUfanetIntercomAPIError as response:
+        msg = response.args[0]['non_field_errors'][0]
+        raise InvalidAuth(msg)
     except aiohttp.ClientError as err:
         raise CannotConnect(f"Cannot connect to Ufanet API: {err}") from err
     except asyncio.TimeoutError:
@@ -73,11 +76,10 @@ class UfanetDoorPhoneConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             try:
                 info = await validate_credentials(self.hass, user_input)
-                
             except CannotConnect:
                 errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
+            except InvalidAuth as exp:
+                errors["base"] = exp.args[0]
             except Exception as err:
                 _LOGGER.exception("Unexpected exception: %s", err)
                 errors["base"] = "unknown"

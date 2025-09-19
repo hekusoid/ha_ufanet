@@ -2,25 +2,31 @@ from __future__ import annotations
 import logging
 import asyncio
 
-from .api.ufanet_api import UfanetIntercomAPI
-from .api.ufanet_api import Intercom
+from api.ufanet_api import UfanetIntercomAPI
+from api.ufanet_api import Intercom
+from api.exceptions import (UnknownUfanetIntercomAPIError,
+                            BadRequestUfanetIntercomAPIError)
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 _LOGGER = logging.getLogger("UfanetIntercom")
 
 CONTRACT = '72911989'
 PASSWORD = '1411579975_'
 
 async def main():
-    _LOGGER.info("Hello!")
+
     ufanet_api = UfanetIntercomAPI(contract=CONTRACT, password=PASSWORD)
 
     try:
+        _LOGGER.info("Get token")
         await ufanet_api._prepare_token()
-    except:
-        _LOGGER.error("Ошибка аутентификации")
+    except BadRequestUfanetIntercomAPIError as res:
+        msg = res.args[0]['non_field_errors'][0]
+        _LOGGER.error(f"Ошибка аутентификации: {msg}")
         await ufanet_api.close()
-        return;
+        return
+    except Exception:
+        return
     # Получение списка домофонов 
     intercoms = await ufanet_api.get_intercoms()
     print('Available intercoms:', intercoms)

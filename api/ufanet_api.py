@@ -5,6 +5,7 @@ import logging
 import aiohttp
 import ssl
 import certifi
+import asyncio
 
 from urllib.parse import urljoin
 from json.decoder import JSONDecodeError
@@ -19,7 +20,9 @@ from uuid import (UUID,
 from .exceptions import (ClientConnectorUfanetIntercomAPIError,
                          TimeoutUfanetIntercomAPIError,
                          UnauthorizedUfanetIntercomAPIError,
-                         UnknownUfanetIntercomAPIError)
+                         UnknownUfanetIntercomAPIError,
+                         InvalidTokenUfanetIntercomAPIError,
+                         BadRequestUfanetIntercomAPIError)
 from .models import (History,
                      HistoryData,
                      Intercom,
@@ -40,7 +43,6 @@ class UfanetIntercomAPI:
 
     async def _send_request(self, url: str, method: str = 'GET', params: Dict[str, Any] = None,
                             json: Dict[str, Any] = None) -> Union[Dict[str, Any], List[Dict[str, Any]], None]:
-
         while True:
             headers = {'Authorization': f'JWT {self._token}'}
             request_id = uuid4().hex
@@ -56,6 +58,8 @@ class UfanetIntercomAPI:
                         return json_response
                     self._LOGGER.error('Response=%s unsuccessful request json_response=%s status=%s reason=%s',
                                        request_id, json_response, response.status, response.reason)
+                    if response.status == 400:
+                        raise BadRequestUfanetIntercomAPIError(json_response)
                     raise UnknownUfanetIntercomAPIError(json_response)
 
             except (JSONDecodeError, ContentTypeError) as e:
