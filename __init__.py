@@ -11,7 +11,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, DEFAULT_SCAN_INTERVAL, CONF_LOGGER_NAME
-from .api.ufanet_api import UfanetIntercomAPI, UfanetAuthError, UfanetConnectionError
+from .api.ufanet_api import UfanetIntercomAPI
+from .api.exceptions import UnauthorizedUfanetIntercomAPIError, ClientConnectorUfanetIntercomAPIError
 
 _LOGGER = logging.getLogger(CONF_LOGGER_NAME)
 
@@ -40,9 +41,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             status = 'mock OK status' # await api.async_get_status()
             _LOGGER.debug("API status: %s", status)
             return status
-        except UfanetAuthError as err:
+        except UnauthorizedUfanetIntercomAPIError as err:
             raise ConfigEntryAuthFailed from err
-        except UfanetConnectionError as err:
+        except ClientConnectorUfanetIntercomAPIError as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
     
     # Создаем координатор для обновления данных
