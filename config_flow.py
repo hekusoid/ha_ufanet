@@ -82,7 +82,7 @@ class UfanetDoorPhoneConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = exp.args[0]
             except Exception as err:
                 _LOGGER.exception("Unexpected exception: %s", err)
-                errors["base"] = "unknown"
+                errors["base"] = f"Unexpected exception: {err}"
             else:
                 return self.async_create_entry(
                     title=info["title"], 
