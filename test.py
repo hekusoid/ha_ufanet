@@ -18,7 +18,6 @@ async def main():
     ufanet_api = UfanetIntercomAPI(contract=CONTRACT, password=PASSWORD)
 
     try:
-        _LOGGER.info("Get token")
         await ufanet_api._prepare_token()
     except BadRequestUfanetIntercomAPIError as res:
         msg = res.args[0]['non_field_errors'][0]
