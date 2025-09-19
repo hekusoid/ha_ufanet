@@ -4,5 +4,6 @@ DOMAIN = "hekus_doorphone"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_DEVICE_ID = "device_id"
+CONF_LOGGER_NAME = "HekusDoorPhone"
 
 DEFAULT_SCAN_INTERVAL = 300  # 5 минут

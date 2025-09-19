@@ -7,6 +7,7 @@ from typing import Any
 import voluptuous as vol
 import aiohttp
 import asyncio
+from api.ufanet_api import UfanetIntercomAPI
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -14,9 +15,9 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import aiohttp_client
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, CONF_LOGGER_NAME
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(CONF_LOGGER_NAME)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -32,28 +33,23 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
     password = data[CONF_PASSWORD]
     
     session = aiohttp_client.async_get_clientsession(hass)
-    
+
+    ufanet_api = UfanetIntercomAPI(contract=username, password=password)
+
+        
     try:
-        # Здесь будет реальная аутентификация
-        # Для тестирования используем mock
-        async with session.post(
-            "https://httpbin.org/post",
-            json={"username": username, "password": password},
-            timeout=aiohttp.ClientTimeout(total=30)
-        ) as response:
-            if response.status != 200:
-                raise InvalidAuth("Invalid credentials")
+        await ufanet_api._prepare_token()
+        await ufanet_api.close()
+
+        device_id = "ufanet_doorphone_001"
             
-            # Mock данные для тестирования
-            device_id = "ufanet_doorphone_001"
-            
-            return {
-                "title": f"Ufanet Door Phone - {username}",
-                "data": {
-                    **data,
-                    CONF_DEVICE_ID: device_id,
-                }
+        return {
+            "title": f"Ufanet Door Phone - {username}",
+            "data": {
+                **data,
+                CONF_DEVICE_ID: device_id,
             }
+        }
             
     except aiohttp.ClientError as err:
         raise CannotConnect(f"Cannot connect to Ufanet API: {err}") from err

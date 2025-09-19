@@ -10,10 +10,10 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, DEFAULT_SCAN_INTERVAL
-from .ufanet_api import UfanetAPI, UfanetAuthError, UfanetConnectionError
+from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, DEFAULT_SCAN_INTERVAL, CONF_LOGGER_NAME
+from .api.ufanet_api import UfanetAPI, UfanetAuthError, UfanetConnectionError
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(CONF_LOGGER_NAME)
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Ufanet Door Phone component."""
@@ -31,13 +31,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     device_id = entry.data.get(CONF_DEVICE_ID)
     
     # Создаем API клиент
-    api = UfanetAPI(username, password, device_id)
+    ufanet_api = UfanetIntercomAPI(contract=username, password=password)
     
     async def async_update_data():
         """Fetch data from API endpoint."""
         try:
             # Простая проверка подключения
-            status = await api.async_get_status()
+            status = 'mock OK status' # await api.async_get_status()
             _LOGGER.debug("API status: %s", status)
             return status
         except UfanetAuthError as err:
@@ -56,7 +56,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Сохраняем данные
     hass.data[DOMAIN][entry.entry_id] = {
-        "api": api,
+        "api": ufanet_api,
         "coordinator": coordinator,
         "device_id": device_id
     }
@@ -65,16 +65,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await coordinator.async_config_entry_first_refresh()
     except ConfigEntryAuthFailed:
-        await api.async_close()
+        await ufanet_api.async_close()
         raise
     except Exception as err:
-        await api.async_close()
+        await ufanet_api.async_close()
         raise ConfigEntryNotReady from err
     
     # Обработчик для закрытия соединения при остановке HA
     async def async_shutdown(event):
         """Shutdown the integration."""
-        await api.async_close()
+        await ufanet_api.async_close()
     
     entry.async_on_unload(
         hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, async_shutdown)
@@ -87,6 +87,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
         data = hass.data[DOMAIN].pop(entry.entry_id)
-        await data["api"].async_close()
+        await data["api"].close()
     
     return True
