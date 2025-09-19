@@ -7,7 +7,7 @@ from typing import Any
 import voluptuous as vol
 import aiohttp
 import asyncio
-from api.ufanet_api import UfanetIntercomAPI
+from .api.ufanet_api import UfanetIntercomAPI
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant

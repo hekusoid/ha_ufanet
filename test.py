@@ -2,8 +2,8 @@ from __future__ import annotations
 import logging
 import asyncio
 
-from api.ufanet_api import UfanetIntercomAPI
-from api.ufanet_api import Intercom
+from .api.ufanet_api import UfanetIntercomAPI
+from .api.ufanet_api import Intercom
 
 logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger("UfanetIntercom")
