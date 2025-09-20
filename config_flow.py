@@ -41,7 +41,7 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
         resp.args = [{'non_field_errors':['Mock error']}]
         raise BadRequestUfanetIntercomAPIError(resp)
 
-        self._LOGGER.warning('validate_credentials: токен получен, закрваем апи')
+        _LOGGER.warning('validate_credentials: токен получен, закрваем апи')
         #await ufanet_api.close()
 
         device_id = "ufanet_doorphone_001"
