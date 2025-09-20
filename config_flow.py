@@ -33,16 +33,16 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
     username = data[CONF_USERNAME]
     password = data[CONF_PASSWORD]
     
-    session = aiohttp_client.async_get_clientsession(hass)
-
     ufanet_api = UfanetIntercomAPI(contract=username, password=password)
-
         
     try:
         self._LOGGER.warning('validate_credentials: пробуем получить токен')
-        await ufanet_api._prepare_token()
+        #await ufanet_api._prepare_token()
+        resp.args = [{'non_field_errors':['Mock error']}]
+        raise BadRequestUfanetIntercomAPIError(resp)
+
         self._LOGGER.warning('validate_credentials: токен получен, закрваем апи')
-        await ufanet_api.close()
+        #await ufanet_api.close()
 
         device_id = "ufanet_doorphone_001"
             
