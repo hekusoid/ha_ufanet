@@ -33,7 +33,7 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
     username = data[CONF_USERNAME]
     password = data[CONF_PASSWORD]
     
-    ufanet_api = UfanetIntercomAPI(contract=username, password=password)
+    #ufanet_api = UfanetIntercomAPI(contract=username, password=password)
         
     try:
         self._LOGGER.warning('validate_credentials: пробуем получить токен')
