@@ -36,7 +36,7 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
     #ufanet_api = UfanetIntercomAPI(contract=username, password=password)
         
     try:
-        self._LOGGER.warning('validate_credentials: пробуем получить токен')
+        _LOGGER.warning('validate_credentials: пробуем получить токен')
         #await ufanet_api._prepare_token()
         resp.args = [{'non_field_errors':['Mock error']}]
         raise BadRequestUfanetIntercomAPIError(resp)
