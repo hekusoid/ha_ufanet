@@ -45,7 +45,7 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
         _LOGGER.warning('validate_credentials: пробуем получить токен')
         #await ufanet_api._prepare_token()
 
-        resp = TmpClass('Mock test message')
+        resp = ResponceMockClass('Mock test message')
         
         raise BadRequestUfanetIntercomAPIError(resp)
 
