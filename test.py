@@ -43,4 +43,11 @@ async def main():
     await ufanet_api.close()
 
 
-asyncio.run(main())
+#asyncio.run(main())
+class TmpClass():
+    def __init__(self, msg: str = ''):
+        self.args = [{'non_field_errors':[msg]}]
+
+resp = TmpClass('Mock test message')
+
+print(resp.args[0]['non_field_errors'][0])

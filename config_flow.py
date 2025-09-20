@@ -27,6 +27,12 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     }
 )
 
+class ResponceMockClass():
+    def __init__(self, msg: str = ''):
+        self.args = [{'non_field_errors':[msg]}]
+
+
+
 async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user credentials."""
     
@@ -38,7 +44,9 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
     try:
         _LOGGER.warning('validate_credentials: пробуем получить токен')
         #await ufanet_api._prepare_token()
-        resp.args = [{'non_field_errors':['Mock error']}]
+
+        resp = TmpClass('Mock test message')
+        
         raise BadRequestUfanetIntercomAPIError(resp)
 
         _LOGGER.warning('validate_credentials: токен получен, закрваем апи')
