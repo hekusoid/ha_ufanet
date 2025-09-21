@@ -81,7 +81,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, async_shutdown)
     )
     
-    _LOGGER.info("Ufanet Door Phone integration setup successfully for user: %s", username)
+    _LOGGER.warning("Ufanet Door Phone integration setup successfully for user: %s", username)
+    
+    await hass.config_entries.async_forward_entry_setups(entry, ["binary_sensor", "button"])
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -89,5 +92,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
         data = hass.data[DOMAIN].pop(entry.entry_id)
         await data["api"].close()
+        await hass.config_entries.async_unload_platforms(entry, ["binary_sensor", "button"])
     
     return True
