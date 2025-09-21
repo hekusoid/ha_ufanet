@@ -42,12 +42,24 @@ async def main():
 
     await ufanet_api.close()
 
+class InvalidAuth(Exception):
+    """Error to indicate invalid authentication credentials."""
 
 #asyncio.run(main())
-class TmpClass():
-    def __init__(self, msg: str = ''):
-        self.args = [{'non_field_errors':[msg]}]
 
-resp = TmpClass('Mock test message')
+def test():
+    try:
+        resp = {'non_field_errors':['Mock test msg']}
+        
+        raise BadRequestUfanetIntercomAPIError(resp)
 
-print(resp.args[0]['non_field_errors'][0])
+    except BadRequestUfanetIntercomAPIError as exp:
+        msg = exp.args[0]['non_field_errors'][0]
+        raise InvalidAuth(msg)
+
+try:
+    test()
+except InvalidAuth as exp:
+    print(f"Ошибка аутентификации: {exp.args[0]}")
+
+

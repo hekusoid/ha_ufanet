@@ -27,12 +27,6 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     }
 )
 
-class ResponceMockClass():
-    def __init__(self, msg: str = ''):
-        self.args = [{'non_field_errors':[msg]}]
-
-
-
 async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user credentials."""
     
@@ -45,7 +39,7 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
         _LOGGER.warning('validate_credentials: пробуем получить токен')
         #await ufanet_api._prepare_token()
 
-        resp = ResponceMockClass('Mock test message')
+        resp = {'non_field_errors':['Mock test msg']}
         
         raise BadRequestUfanetIntercomAPIError(resp)
 
@@ -61,8 +55,8 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
                 CONF_DEVICE_ID: device_id,
             }
         }
-    except BadRequestUfanetIntercomAPIError as response:
-        msg = response.args[0]['non_field_errors'][0]
+    except BadRequestUfanetIntercomAPIError as exp:
+        msg = exp.args[0]['non_field_errors'][0]
         raise InvalidAuth(msg)
     except aiohttp.ClientError as err:
         raise CannotConnect(f"Cannot connect to Ufanet API: {err}") from err
@@ -89,7 +83,7 @@ class UfanetDoorPhoneConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except InvalidAuth as exp:
-                errors["base"] = exp.args[0]
+                errors["base"] = f"Ошибка аутентификации: {exp.args[0]}"
             except Exception as err:
                 _LOGGER.exception("Unexpected exception: %s", err)
                 errors["base"] = f"Unexpected exception: {err}"
