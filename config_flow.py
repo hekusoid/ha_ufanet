@@ -16,6 +16,8 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import aiohttp_client
 
+from .device import TestDevice, create_devices
+
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, CONF_LOGGER_NAME
 
 _LOGGER = logging.getLogger(CONF_LOGGER_NAME)
@@ -33,14 +35,16 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
     username = data[CONF_USERNAME]
     password = data[CONF_PASSWORD]
     
-    ufanet_api = UfanetIntercomAPI(contract=username, password=password)
+    #ufanet_api = UfanetIntercomAPI(contract=username, password=password)
         
     try:
-        await ufanet_api._prepare_token()
+        #await ufanet_api._prepare_token()
 
-        await ufanet_api.close()
+        #await ufanet_api.close()
 
         device_id = "ufanet_doorphone_001"
+
+        create_devices("Hekus doorphone")
             
         return {
             "title": f"Домофон Ufanet (договор №{username})",
