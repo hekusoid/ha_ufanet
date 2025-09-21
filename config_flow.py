@@ -51,6 +51,7 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
             "data": {
                 **data,
                 CONF_DEVICE_ID: device_id,
+                'name': 'My mock name'
             }
         }
     except BadRequestUfanetIntercomAPIError as exp:
