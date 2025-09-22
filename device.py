@@ -2,15 +2,19 @@
 
 from dataclasses import dataclass
 from typing import List, Dict, Any
+from .api.models import Intercom
 
 @dataclass
-class TestDevice:
-    """Representation of a test device."""
+class DoorPhoneDevice:
+    """Домофон от Ufanet"""
+
+    def __init__(self, intercom: Intercom):
+        self._intercom = intercom
+        self.device_id = f'ufanet_doorphone_{intercom.id}'
+        self.name = f"{intercom.string_view} ({intercom.role.name})"
+        sensor_value = 0
     
-    device_id: str
-    name: str
-    sensor_value: int = 0
-    
+  
     def increment_sensor(self):
         """Increment sensor value."""
         self.sensor_value += 1
@@ -30,7 +34,7 @@ class TestDevice:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'TestDevice':
+    def from_dict(cls, data: Dict[str, Any]) -> 'DoorPhoneDevice':
         """Create device from dictionary."""
         device = cls(
             device_id=data['device_id'],
@@ -40,25 +44,23 @@ class TestDevice:
         return device
 
 
-def create_devices(integration_name: str) -> List[TestDevice]:
+def create_devices(intercoms: List[Intercom]) -> List[DoorPhoneDevice]:
     """Create three test devices."""
+
     devices = []
-    
-    for i in range(1, 4):
-        device = TestDevice(
-            device_id=f"{integration_name}_device_{i}",
-            name=f"{integration_name} Device {i}"
-        )
+
+    for intercom in intercoms:
+        device = DoorPhoneDevice(intercom)
         devices.append(device)
-    
+
     return devices
 
 
-def devices_to_dict(devices: List[TestDevice]) -> List[Dict[str, Any]]:
+def devices_to_dict(devices: List[DoorPhoneDevice]) -> List[Dict[str, Any]]:
     """Convert list of devices to list of dictionaries."""
     return [device.to_dict() for device in devices]
 
 
-def devices_from_dict(devices_data: List[Dict[str, Any]]) -> List[TestDevice]:
+def devices_from_dict(devices_data: List[Dict[str, Any]]) -> List[DoorPhoneDevice]:
     """Create list of devices from list of dictionaries."""
-    return [TestDevice.from_dict(data) for data in devices_data]
+    return [DoorPhoneDevice.from_dict(data) for data in devices_data]
