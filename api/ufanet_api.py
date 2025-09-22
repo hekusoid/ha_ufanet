@@ -9,7 +9,7 @@ import asyncio
 
 from urllib.parse import urljoin
 from json.decoder import JSONDecodeError
-from typing import Any
+from typing import (Any, Union, Dict, List)
 from aiohttp import (ClientSession,
                      ClientTimeout,
                      TCPConnector)

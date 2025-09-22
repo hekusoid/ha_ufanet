@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import (Any, List)
 
 import voluptuous as vol
 import aiohttp
@@ -47,7 +47,7 @@ async def validate_credentials(hass: HomeAssistant, data: dict[str, Any]) -> dic
 
         #await ufanet_api.close()
 
-        intecoms = get_mock_intercoms()
+        intercoms = get_mock_intercoms()
 
         devices = create_devices(intercoms)
             

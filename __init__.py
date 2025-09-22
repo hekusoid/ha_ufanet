@@ -4,11 +4,11 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed
+from homeassistant.config_entries import ConfigEntry 
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP 
+from homeassistant.core import HomeAssistant 
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed 
+from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed 
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, DEFAULT_SCAN_INTERVAL, CONF_LOGGER_NAME
 from .api.ufanet_api import UfanetIntercomAPI

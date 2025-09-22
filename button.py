@@ -15,7 +15,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the button platform."""
     devices = entry.data['devices'];
-    if devices id not None:
+    if devices is not None:
         entities = []
         for device in devices:
             entities.append(DoorPhoneOpenButton(device))
