@@ -67,8 +67,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     devices = create_devices(intercoms)
 
-    _LOGGER.warning(f'Setup entry {entry.entry_id}')
-
     # Сохраняем данные
     hass.data[DOMAIN][entry.entry_id] = {
         "api": ufanet_api,
