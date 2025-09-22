@@ -41,7 +41,7 @@ class DoorPhoneOpenButton(ButtonEntity):
             identifiers={(DOMAIN, self._device.device_id)},
             name=self._device.name,
             manufacturer="Ufanet",
-            model="Simple Device"
+            model=f"Intercom (model {self._device._intercom.model})"
         )
     
     def press(self) -> None:
