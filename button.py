@@ -41,7 +41,7 @@ class DoorPhoneOpenButton(ButtonEntity):
         self._device = doorphone
 
 
-        self._attr_name = f"doorphone_{self._intercom_id}_button_id"
+        self._attr_name = f"Open door"
 
         #self._attr_unique_id = f"doorphone_{self._intercom_id}_button_id"
 
