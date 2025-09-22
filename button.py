@@ -28,10 +28,10 @@ async def async_setup_entry(
         async_add_entities(entities)
 
 class DoorPhoneOpenButton(ButtonEntity):
-    """Кнопка открытия домофона.
-       Только одно действие - открыть дверь. Есть защита от повторного нажатия (по умолчанию 5 секунд)
     """
-    
+        Кнопка открытия домофона.
+        Только одно действие - открыть дверь. Есть защита от повторного нажатия (по умолчанию 5 секунд)
+    """
 
     def __init__(self, doorphone: DoorPhoneDevice, api: UfanetIntercomAPI):
         # Сохраняем идентифкатор домофона        
@@ -43,7 +43,7 @@ class DoorPhoneOpenButton(ButtonEntity):
 
 
         self._attr_unique_id = f"button.intercom_{self._intercom_id}_button"
-        self._attr_name = f"Open door button"
+        self._attr_name = f"Open door"
         self._attr_has_entity_name = True
 
 
