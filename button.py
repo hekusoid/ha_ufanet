@@ -31,7 +31,8 @@ class DoorPhoneOpenButton(ButtonEntity):
     """Кнопка открытия домофона.
        Только одно действие - открыть дверь. Есть защита от повторного нажатия (по умолчанию 5 секунд)
     """
-    
+    _attr_has_entity_name = True
+
     def __init__(self, doorphone: DoorPhoneDevice, api: UfanetIntercomAPI):
         # Сохраняем идентифкатор домофона        
         self._intercom_id = doorphone._intercom.id
@@ -42,10 +43,7 @@ class DoorPhoneOpenButton(ButtonEntity):
 
 
         self._attr_name = f"Open door"
-
-        #self._attr_unique_id = f"doorphone_{self._intercom_id}_button_id"
-
-        self._unique_id = f"intercom_{self._intercom_id}_button"
+        self._attr_unique_id = f"intercom_{self._intercom_id}_button"
 
         # время последнего нажатия
         self._last_press_time: datetime | None = None
@@ -53,10 +51,6 @@ class DoorPhoneOpenButton(ButtonEntity):
         self._cooldown_seconds = 8
         # текщее состояние кнопки
         self._is_pressing = False
-
-    @property
-    def unique_id(self) -> str:
-        return self._unique_id
         
     @property
     def device_info(self) -> DeviceInfo:
