@@ -5,6 +5,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.device_registry import DeviceInfo
 
+from datetime import datetime, timedelta
+
 from .const import DOMAIN
 from .device import DoorPhoneDevice, devices_from_dict
 from .api.ufanet_api import UfanetIntercomAPI
@@ -35,7 +37,11 @@ class DoorPhoneOpenButton(ButtonEntity):
         self._ufanetapi = api
         self._device = doorphone
         self._attr_name = f"Doorphone open button name"
-        self._attr_unique_id = f"doorphone_{self._intercom_id}_button"
+        self._attr_unique_id = f"doorphone_{self._intercom_id}_button_id"
+
+        self._last_press_time: datetime | None = None
+        self._cooldown_seconds = 5
+        self._is_pressing = False
         
     @property
     def device_info(self) -> DeviceInfo:
@@ -47,9 +53,42 @@ class DoorPhoneOpenButton(ButtonEntity):
             model=f"Intercom (model {self._device._intercom.model})"
         )
     
-    def press(self) -> None:
+    @property
+    def available(self) -> bool:
+        """Return True if button is available for pressing."""
+        if self._is_pressing or self._last_press_time is None:
+            return not self._is_pressing
+            
+        time_since_last_press = datetime.now() - self._last_press_time
+        return time_since_last_press.total_seconds() >= self._cooldown_seconds
+    
+    
+    async def async_press(self) -> None:
+
         """Handle the button press."""
-        # Implement your button action here
-        self.hass.bus.fire("my_simple_integration_button_pressed", {
-            "device_id": self._intercom_id
-        })
+        if not self.available or self._is_pressing:
+            return
+
+        self._is_pressing = True
+        self.async_write_ha_state()
+
+        try:
+            # Do job
+            
+
+            self._last_press_time = datetime.now()
+            
+        finally:
+            self._is_pressing = False
+            self.async_write_ha_state()
+            
+            # Schedule availability update after cooldown
+            self.hass.loop.call_later(
+                self._cooldown_seconds, 
+                lambda: self.hass.create_task(self._async_update_availability())
+            )
+        
+
+    async def _async_update_availability(self) -> None:
+        """Update availability status after cooldown."""
+        self.async_write_ha_state()
