@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from typing import (List)
 
 from homeassistant.config_entries import ConfigEntry 
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP 
@@ -12,6 +13,7 @@ from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, DEFAULT_SCAN_INTERVAL, CONF_LOGGER_NAME
 from .api.ufanet_api import UfanetIntercomAPI
+from .api.models import Intercom
 from .api.exceptions import UnauthorizedUfanetIntercomAPIError, ClientConnectorUfanetIntercomAPIError
 
 _LOGGER = logging.getLogger(CONF_LOGGER_NAME)
@@ -20,6 +22,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Ufanet Door Phone component."""
     hass.data.setdefault(DOMAIN, {})
     return True
+
+def get_mock_intercoms() -> List[Intercom]:
+    mock_responce = [{'id': 109757, 'contract': None, 'role': {'id': 8, 'name': 'Домофон-калитка'}, 'camera': None, 'cctv_number': '1738053250GTF70', 'string_view': 'г. Уфа, Заки Валиди, 71', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 458263, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}, {'id': 103616, 'contract': None, 'role': {'id': 8, 'name': 'Домофон-калитка'}, 'camera': None, 'cctv_number': '1737985955HSN76', 'string_view': 'г. Уфа, Заки Валиди, 73', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 31465, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}, {'id': 103413, 'contract': 664192, 'role': {'id': 2, 'name': 'Домофон'}, 'camera': None, 'cctv_number': '1737976793GSM0', 'string_view': 'г. Уфа, Заки Валиди, 73, п.1', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 31465, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}]
+    return [Intercom(**i) for i in mock_responce]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Ufanet Door Phone from a config entry."""
@@ -55,10 +61,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
     )
     
+    intercoms = get_mock_intercoms()
+
+    devices = create_devices(intercoms)
+
+    _LOGGER.warning(f'Setup entry {entry.entry_id}')
+
     # Сохраняем данные
     hass.data[DOMAIN][entry.entry_id] = {
         "api": ufanet_api,
         "coordinator": coordinator,
+        devices: devices
         #"device_id": device_id
     }
     
