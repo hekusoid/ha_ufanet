@@ -6,7 +6,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
-from .device import DoorPhoneDevice
+from .device import DoorPhoneDevice, devices_from_dict
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -14,7 +14,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the button platform."""
-    devices = entry.data['devices'];
+    devices = devices_from_dict(entry.data['devices']);
     if devices is not None:
         entities = []
         for device in devices:
