@@ -4,7 +4,7 @@
   "codeowners": ["@hekusoid"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/hekusoid/ha-ufanet",
+  "documentation": "https://github.com/hekusoid/ha_ufanet",
   "integration_type": "device",
   "iot_class": "cloud_polling",
   "requirements": ["aiohttp>=3.8.0"],

@@ -37,9 +37,7 @@ class UfanetIntercomAPI:
         self._token: Union[str, None] = None
         self._base_url: str = 'https://dom.ufanet.ru/'
 
-        ssl_context = ssl.create_default_context(cafile=certifi.where())
-        self.session: ClientSession = ClientSession(connector=TCPConnector(ssl=ssl_context),
-                                                    timeout=ClientTimeout(total=timeout))
+        self.session: ClientSession = ClientSession(timeout=ClientTimeout(total=timeout))
 
     async def _send_request(self, url: str, method: str = 'GET', params: Dict[str, Any] = None,
                             json: Dict[str, Any] = None) -> Union[Dict[str, Any], List[Dict[str, Any]], None]:
