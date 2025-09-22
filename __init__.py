@@ -37,11 +37,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Получаем сохраненные учетные данные
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
-    #device_id = entry.data.get(CONF_DEVICE_ID)
     
     # Создаем API клиент
     ufanet_api = UfanetIntercomAPI(contract=username, password=password)
-    ufanet_api._prepare_token()
+    await ufanet_api._prepare_token()
     
     async def async_update_data():
         """Fetch data from API endpoint."""
