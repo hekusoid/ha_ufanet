@@ -25,9 +25,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
     return True
 
-def get_mock_intercoms() -> List[Intercom]:
-    mock_responce = [{'id': 109757, 'contract': None, 'role': {'id': 8, 'name': 'Домофон-калитка'}, 'camera': None, 'cctv_number': '1738053250GTF70', 'string_view': 'г. Уфа, Заки Валиди, 71', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 458263, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}, {'id': 103616, 'contract': None, 'role': {'id': 8, 'name': 'Домофон-калитка'}, 'camera': None, 'cctv_number': '1737985955HSN76', 'string_view': 'г. Уфа, Заки Валиди, 73', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 31465, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}, {'id': 103413, 'contract': 664192, 'role': {'id': 2, 'name': 'Домофон'}, 'camera': None, 'cctv_number': '1737976793GSM0', 'string_view': 'г. Уфа, Заки Валиди, 73, п.1', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 31465, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}]
-    return [Intercom(**i) for i in mock_responce]
+#def get_mock_intercoms() -> List[Intercom]:
+#    mock_responce = [{'id': 109757, 'contract': None, 'role': {'id': 8, 'name': 'Домофон-калитка'}, 'camera': None, 'cctv_number': '1738053250GTF70', 'string_view': 'г. Уфа, Заки Валиди, 71', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 458263, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}, {'id': 103616, 'contract': None, 'role': {'id': 8, 'name': 'Домофон-калитка'}, 'camera': None, 'cctv_number': '1737985955HSN76', 'string_view': 'г. Уфа, Заки Валиди, 73', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 31465, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}, {'id': 103413, 'contract': 664192, 'role': {'id': 2, 'name': 'Домофон'}, 'camera': None, 'cctv_number': '1737976793GSM0', 'string_view': 'г. Уфа, Заки Валиди, 73, п.1', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 31465, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}]
+#    return [Intercom(**i) for i in mock_responce]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Ufanet Door Phone from a config entry."""
@@ -63,7 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
     )
     
-    intercoms = get_mock_intercoms()
+    intercoms = ufanet_api.get_intercoms() #get_mock_intercoms()
 
     devices = create_devices(intercoms)
 
