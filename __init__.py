@@ -63,7 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
     )
     
-    intercoms = ufanet_api.get_intercoms() #get_mock_intercoms()
+    intercoms = await ufanet_api.get_intercoms() #get_mock_intercoms()
 
     devices = create_devices(intercoms)
 
