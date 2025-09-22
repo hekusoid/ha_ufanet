@@ -76,13 +76,13 @@ class UfanetDoorPhoneConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             try:
                 info = await validate_credentials(self.hass, user_input)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
+            except CannotConnect as exp:
+                errors["base"] = f"Ошибка подключения: {exp.args[0]}"
             except InvalidAuth as exp:
                 errors["base"] = f"Ошибка аутентификации: {exp.args[0]}"
-            except Exception as err:
-                _LOGGER.exception("Unexpected exception: %s", err)
-                errors["base"] = f"Unexpected exception: {err}"
+            except Exception as exp:
+                _LOGGER.exception("Unexpected exception: %s", exp)
+                errors["base"] = f"Unexpected exception: {exp}"
             else:
                 return self.async_create_entry(
                     title=info["title"], 

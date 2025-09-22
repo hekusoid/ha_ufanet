@@ -41,8 +41,9 @@ class DoorPhoneOpenButton(ButtonEntity):
         self._device = doorphone
 
 
-        self._attr_name = f"Doorphone open button name"
+        self._attr_name = f"doorphone_{self._intercom_id}_button_id"
         self._attr_unique_id = f"doorphone_{self._intercom_id}_button_id"
+        self._attr_friendly_name = f"Doorphone open button friendly name"
 
         # время последнего нажатия
         self._last_press_time: datetime | None = None
