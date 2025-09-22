@@ -12,7 +12,7 @@ class DoorPhoneDevice:
         self._intercom = intercom
         self.device_id = f'ufanet_doorphone_{intercom.id}'
         self.name = f"{intercom.string_view} ({intercom.role.name})"
-        sensor_value = 0
+        self.sensor_value = 0
     
   
     def increment_sensor(self):
