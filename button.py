@@ -21,7 +21,7 @@ async def async_setup_entry(
     if devices is not None:
         entities = []
         for device in devices:
-            entities.append(DoorPhoneOpenButton(device), api)
+            entities.append(DoorPhoneOpenButton(device, api))
 
         async_add_entities(entities)
 
