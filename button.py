@@ -7,6 +7,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
 from .device import DoorPhoneDevice, devices_from_dict
+from .api.ufanet_api 
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -16,22 +17,24 @@ async def async_setup_entry(
     """Set up the button platform."""
     
     devices = hass.data[DOMAIN][entry.entry_id]['devices']
+    api = hass.data[DOMAIN][entry.entry_id]['api']
     if devices is not None:
         entities = []
         for device in devices:
-            entities.append(DoorPhoneOpenButton(device))
+            entities.append(DoorPhoneOpenButton(device), api)
 
         async_add_entities(entities)
 
 class DoorPhoneOpenButton(ButtonEntity):
     """Representation of a Simple Button."""
     
-    def __init__(self, doorphone: DoorPhoneDevice):
+    def __init__(self, doorphone: DoorPhoneDevice, api: UfanetIntercomAPI):
         """Initialize the button."""
         
         self._intercom_id = doorphone._intercom.id
+        self._ufanetapi = api
         self._device = doorphone
-        self._attr_name = f"Doorphone open button"
+        self._attr_name = f"Doorphone open button name"
         self._attr_unique_id = f"doorphone_{self._intercom_id}_button"
         
     @property
@@ -48,5 +51,5 @@ class DoorPhoneOpenButton(ButtonEntity):
         """Handle the button press."""
         # Implement your button action here
         self.hass.bus.fire("my_simple_integration_button_pressed", {
-            "device_id": self._entry.entry_id
+            "device_id": self._intercom_id
         })
