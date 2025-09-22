@@ -16,6 +16,8 @@ from .api.ufanet_api import UfanetIntercomAPI
 from .api.models import Intercom
 from .api.exceptions import UnauthorizedUfanetIntercomAPIError, ClientConnectorUfanetIntercomAPIError
 
+from .device import DoorPhoneDevice, create_devices
+
 _LOGGER = logging.getLogger(CONF_LOGGER_NAME)
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
