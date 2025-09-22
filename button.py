@@ -14,7 +14,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the button platform."""
-    devices = devices_from_dict(entry.data['devices']);
+    devices = entry.data['devices'];
     if devices is not None:
         entities = []
         for device in devices:

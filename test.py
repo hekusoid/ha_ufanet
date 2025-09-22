@@ -7,6 +7,8 @@ from api.ufanet_api import Intercom
 from api.exceptions import (UnknownUfanetIntercomAPIError,
                             BadRequestUfanetIntercomAPIError)
 
+from device import DoorPhoneDevice, create_devices, devices_to_dict, devices_from_dict
+
 logging.basicConfig(level=logging.DEBUG)
 _LOGGER = logging.getLogger("UfanetIntercom")
 
@@ -56,9 +58,12 @@ def get_mock_intercoms() -> List[Intercom]:
 
 
 intercoms = get_mock_intercoms()
-for intercom in intercoms:
-    print(f'Id: {intercom.id}')
-    print(f'Название: {intercom.string_view} ({intercom.role.name})')
+
+devices = create_devices(intercoms)
+
+conf = {'devices' : devices}
+
+print(conf)
 
 
 

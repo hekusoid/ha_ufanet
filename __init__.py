@@ -73,7 +73,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = {
         "api": ufanet_api,
         "coordinator": coordinator,
-        devices: devices_to_dict(devices)
+        "devices": devices
     }
     
     # Запускаем обновление данных для проверки подключения
