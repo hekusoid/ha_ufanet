@@ -47,7 +47,7 @@ class DoorPhoneOpenButton(ButtonEntity):
         # время последнего нажатия
         self._last_press_time: datetime | None = None
         # время в течении которого нельзя повторно надать кнопку
-        self._cooldown_seconds = 5
+        self._cooldown_seconds = 8
         # текщее состояние кнопки
         self._is_pressing = False
         
