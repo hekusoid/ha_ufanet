@@ -7,7 +7,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
 from .device import DoorPhoneDevice, devices_from_dict
-from .api.ufanet_api 
+from .api.ufanet_api import UfanetIntercomAPI
 
 async def async_setup_entry(
     hass: HomeAssistant,
