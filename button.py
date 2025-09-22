@@ -42,8 +42,10 @@ class DoorPhoneOpenButton(ButtonEntity):
 
 
         self._attr_name = f"doorphone_{self._intercom_id}_button_id"
-        self._attr_unique_id = f"doorphone_{self._intercom_id}_button_id"
-        self._attr_friendly_name = f"Doorphone open button friendly name"
+
+        #self._attr_unique_id = f"doorphone_{self._intercom_id}_button_id"
+
+        self._unique_id = f"intercom_{self._intercom_id}_button"
 
         # время последнего нажатия
         self._last_press_time: datetime | None = None
@@ -51,6 +53,10 @@ class DoorPhoneOpenButton(ButtonEntity):
         self._cooldown_seconds = 8
         # текщее состояние кнопки
         self._is_pressing = False
+
+    @property
+    def unique_id(self) -> str:
+        return self._unique_id
         
     @property
     def device_info(self) -> DeviceInfo:
