@@ -10,5 +10,5 @@
   "requirements": ["aiohttp>=3.8.0"],
   "version": "0.0.3",
   "icon": "mdi:door",
-  "issue_tracker": "https://github.com/hekusoid/ha_ufanet/issues",
+  "issue_tracker": "https://github.com/hekusoid/ha_ufanet/issues"
 }
