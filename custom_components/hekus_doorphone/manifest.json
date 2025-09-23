@@ -9,5 +9,10 @@
   "iot_class": "cloud_polling",
   "requirements": ["aiohttp>=3.8.0"],
   "version": "0.0.3",
-  "icon": "mdi:door",
+  "icon": "icon.png",
+  "issue_tracker": "https://github.com/hekusoid/ha_ufanet/issues",
+  "logos": {
+    "small": "icon.png",
+    "large": "logo.png"
+  }
 }

@@ -1,7 +1,7 @@
 {
   "name": "Hekus DoorPhone",
-  "domains": ["button"],
+  "render_readme": true,
   "homeassistant": "2023.9.0",
-  "iot_class": "Cloud Polling",
-  "render_readme": true
+  "hide_default_branch": true,
+  "icon": "icon.png"
 }
