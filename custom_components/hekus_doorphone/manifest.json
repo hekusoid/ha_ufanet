@@ -1,6 +1,6 @@
 {
   "domain": "hekus_doorphone",
-  "name": "Hekus doorphone",
+  "name": "Hekus DoorPhone",
   "codeowners": ["@hekusoid"],
   "config_flow": true,
   "dependencies": [],
@@ -9,5 +9,5 @@
   "iot_class": "cloud_polling",
   "requirements": ["aiohttp>=3.8.0"],
   "version": "0.0.3",
-  "icon": "mdi:test-tube"
+  "icon": "mdi:door",
 }
