@@ -2,8 +2,8 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
-Интеграция для управления домофонами Ufanet через Home Assistant.
-Интеграция использует ["Умный дом от Ufanet"](https://dom.ufanet.ru/)
+Интеграция для управления домофонами Ufanet через Home Assistant. 
+Интеграция использует ["Умный дом от Ufanet"](https://dom.ufanet.ru/) 
 Используется открытое апи по упраленияб домофонами https://secretapi.ufanet.ru/ru/Intercom
 
 ## Возможности
