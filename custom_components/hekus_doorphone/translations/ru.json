@@ -1,0 +1,37 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Домофон Ufanet",
+        "description": "Войдите по номеру договора и паролю от аккаунта «Умный дом Ufanet» (dom.ufanet.ru).",
+        "data": {
+          "username": "Номер договора",
+          "password": "Пароль"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Повторная авторизация в Ufanet",
+        "description": "Учётные данные для договора {username} больше не подходят. Введите актуальный пароль.",
+        "data": {
+          "password": "Пароль"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Неверный номер договора или пароль.",
+      "cannot_connect": "Не удалось подключиться к API Ufanet.",
+      "unknown": "Неожиданная ошибка, подробности в логе Home Assistant."
+    },
+    "abort": {
+      "already_configured": "Этот номер договора уже добавлен.",
+      "reauth_successful": "Повторная авторизация выполнена успешно."
+    }
+  },
+  "entity": {
+    "lock": {
+      "door_lock": {
+        "name": "Замок двери"
+      }
+    }
+  }
+}
