@@ -1,109 +1,121 @@
-"""The Ufanet Door Phone integration."""
+"""Интеграция Ufanet Door Phone для Home Assistant."""
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
-from typing import (List)
+from typing import Any, Dict, List
 
-from homeassistant.config_entries import ConfigEntry 
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP 
-from homeassistant.core import HomeAssistant 
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed 
-from homeassistant.exceptions import ConfigEntryNotReady, ConfigEntryAuthFailed 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_DEVICE_ID, DEFAULT_SCAN_INTERVAL, CONF_LOGGER_NAME
-from .api.ufanet_api import UfanetIntercomAPI
+from .api.exceptions import (
+    BadRequestUfanetIntercomAPIError,
+    ClientConnectorUfanetIntercomAPIError,
+    TimeoutUfanetIntercomAPIError,
+    UnauthorizedUfanetIntercomAPIError,
+)
 from .api.models import Intercom
-from .api.exceptions import UnauthorizedUfanetIntercomAPIError, ClientConnectorUfanetIntercomAPIError
+from .api.ufanet_api import UfanetIntercomAPI
+from .const import CONF_PASSWORD, CONF_USERNAME, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .device import DoorPhoneDevice, create_devices
 
-from .device import DoorPhoneDevice, create_devices, devices_to_dict
+_LOGGER = logging.getLogger(__name__)
 
-_LOGGER = logging.getLogger(CONF_LOGGER_NAME)
+PLATFORMS: List[Platform] = [Platform.LOCK]
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the Ufanet Door Phone component."""
+IntercomsData = Dict[int, Intercom]
+
+
+@dataclass
+class UfanetDoorPhoneData:
+    """Данные интеграции, привязанные к config entry."""
+
+    api: UfanetIntercomAPI
+    coordinator: DataUpdateCoordinator
+    devices: List[DoorPhoneDevice]
+
+
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
+    """Инициализировать интеграцию Ufanet Door Phone."""
     hass.data.setdefault(DOMAIN, {})
     return True
 
-#def get_mock_intercoms() -> List[Intercom]:
-#    mock_responce = [{'id': 109757, 'contract': None, 'role': {'id': 8, 'name': 'Домофон-калитка'}, 'camera': None, 'cctv_number': '1738053250GTF70', 'string_view': 'г. Уфа, Заки Валиди, 71', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 458263, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}, {'id': 103616, 'contract': None, 'role': {'id': 8, 'name': 'Домофон-калитка'}, 'camera': None, 'cctv_number': '1737985955HSN76', 'string_view': 'г. Уфа, Заки Валиди, 73', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 31465, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}, {'id': 103413, 'contract': 664192, 'role': {'id': 2, 'name': 'Домофон'}, 'camera': None, 'cctv_number': '1737976793GSM0', 'string_view': 'г. Уфа, Заки Валиди, 73, п.1', 'timeout': 10, 'disable_button': False, 'no_sound': True, 'open_in_talk': 'http', 'open_type': 'http', 'dtmf_code': '#0', 'inactivity_reason': None, 'house': 31465, 'frsi': True, 'is_fav': False, 'model': 39, 'custom_name': None, 'is_blocked': False, 'supports_key_recording': True, 'ble_support': True, 'is_support_sip_monitor': False, 'relays': [], 'private_status': 1, 'scope': 'owner'}]
-#    return [Intercom(**i) for i in mock_responce]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Ufanet Door Phone from a config entry."""
-    
+    """Настроить интеграцию по записи конфигурации."""
     hass.data.setdefault(DOMAIN, {})
-    
-    # Получаем сохраненные учетные данные
-    username = entry.data[CONF_USERNAME]
-    password = entry.data[CONF_PASSWORD]
-    
-    # Создаем API клиент
-    ufanet_api = UfanetIntercomAPI(contract=username, password=password)
-    await ufanet_api._prepare_token()
-    
-    async def async_update_data():
-        """Fetch data from API endpoint."""
+
+    username: str = entry.data[CONF_USERNAME]
+    password: str = entry.data[CONF_PASSWORD]
+
+    # Сессию предоставляет Home Assistant, закрывать её интеграция не должна.
+    api = UfanetIntercomAPI(
+        contract=username,
+        password=password,
+        session=async_get_clientsession(hass),
+        logger_name=f"{DOMAIN}.api",
+    )
+
+    try:
+        await api.async_authenticate()
+    except (BadRequestUfanetIntercomAPIError, UnauthorizedUfanetIntercomAPIError) as err:
+        raise ConfigEntryAuthFailed(
+            f"Не удалось авторизоваться в Ufanet для договора {username}: {err}"
+        ) from err
+    except (ClientConnectorUfanetIntercomAPIError, TimeoutUfanetIntercomAPIError) as err:
+        raise ConfigEntryNotReady(f"Ufanet API недоступен: {err}") from err
+
+    async def async_update_data() -> IntercomsData:
+        """Обновить список домофонов аккаунта."""
         try:
-            # Простая проверка подключения
-            status = 'mock OK status' # await api.async_get_status()
-            _LOGGER.debug("API status: %s", status)
-            return status
+            intercoms = await api.get_intercoms()
         except UnauthorizedUfanetIntercomAPIError as err:
-            raise ConfigEntryAuthFailed from err
-        except ClientConnectorUfanetIntercomAPIError as err:
-            raise UpdateFailed(f"Error communicating with API: {err}") from err
-    
-    # Создаем координатор для обновления данных
-    coordinator = DataUpdateCoordinator(
+            raise ConfigEntryAuthFailed(
+                f"Токен Ufanet для договора {username} больше не действителен"
+            ) from err
+        except (ClientConnectorUfanetIntercomAPIError, TimeoutUfanetIntercomAPIError) as err:
+            raise UpdateFailed(f"Ошибка обмена с Ufanet API: {err}") from err
+        return {intercom.id: intercom for intercom in intercoms}
+
+    coordinator: DataUpdateCoordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
         name=DOMAIN,
         update_method=async_update_data,
         update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
     )
-    
-    intercoms = await ufanet_api.get_intercoms() #get_mock_intercoms()
 
-    devices = create_devices(intercoms)
+    # Первый опрос: поднимет ConfigEntryAuthFailed / ConfigEntryNotReady сам.
+    await coordinator.async_config_entry_first_refresh()
 
-    # Сохраняем данные
-    hass.data[DOMAIN][entry.entry_id] = {
-        "api": ufanet_api,
-        "coordinator": coordinator,
-        "devices": devices
-    }
-    
-    # Запускаем обновление данных для проверки подключения
-    try:
-        await coordinator.async_config_entry_first_refresh()
-    except ConfigEntryAuthFailed:
-        await ufanet_api.async_close()
-        raise
-    except Exception as err:
-        await ufanet_api.async_close()
-        raise ConfigEntryNotReady from err
-    
-    # Обработчик для закрытия соединения при остановке HA
-    async def async_shutdown(event):
-        """Shutdown the integration."""
-        await ufanet_api.async_close()
-    
-    entry.async_on_unload(
-        hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, async_shutdown)
+    devices = create_devices(list(coordinator.data.values()))
+
+    hass.data[DOMAIN][entry.entry_id] = UfanetDoorPhoneData(
+        api=api,
+        coordinator=coordinator,
+        devices=devices,
     )
-    
-    _LOGGER.warning("Ufanet Door Phone integration setup successfully for user: %s", username)
-    
-    await hass.config_entries.async_forward_entry_setups(entry, ["lock"])
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    _LOGGER.debug("Ufanet Door Phone: найдено домофонов — %s (договор %s)",
+                  len(devices), username)
 
     return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
-        data = hass.data[DOMAIN].pop(entry.entry_id)
-        await data["api"].close()
-        await hass.config_entries.async_unload_platforms(entry, ["lock"])
-    
-    return True
+    """Выгрузить запись конфигурации."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    if unload_ok:
+        data: UfanetDoorPhoneData | None = hass.data[DOMAIN].pop(entry.entry_id, None)
+        if data is not None:
+            await data.api.close()
+
+    return unload_ok

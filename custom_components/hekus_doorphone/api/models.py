@@ -1,22 +1,28 @@
+"""Модели данных API домофонов Ufanet."""
 from datetime import datetime
-from typing import (List,
-                    Optional)
+from typing import List, Optional
 
 from pydantic import BaseModel
 
 
 class Token(BaseModel):
+    """Пара JWT-токенов из ответа auth_by_contract."""
+
     access: str
     refresh: str
     exp: int
 
 
 class Role(BaseModel):
+    """Роль пользователя по отношению к домофону (собственник, гость и т. п.)."""
+
     id: int
     name: str
 
 
 class Intercom(BaseModel):
+    """Домофон, доступный в аккаунте Ufanet."""
+
     id: int
     contract: Optional[int]
     role: Role
@@ -45,6 +51,8 @@ class Intercom(BaseModel):
 
 
 class HistoryResult(BaseModel):
+    """Один вызов домофона из истории."""
+
     uuid: str
     house_id: int
     address: str
@@ -57,6 +65,8 @@ class HistoryResult(BaseModel):
 
 
 class History(BaseModel):
+    """Постраничная история вызовов домофона."""
+
     count: int
     next: Optional[str]
     previous: Optional[str]
@@ -64,5 +74,7 @@ class History(BaseModel):
 
 
 class HistoryData(BaseModel):
+    """Ссылки на запись и превью конкретного вызова."""
+
     url: str
     preview: str
