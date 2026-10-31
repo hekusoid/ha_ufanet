@@ -20,7 +20,7 @@ from .api.exceptions import UfanetIntercomAPIError
 from .api.models import Intercom
 from .api.ufanet_api import UfanetIntercomAPI
 from .const import DOMAIN, UNLOCK_COOLDOWN
-from .device import DoorPhoneDevice
+from .device import DoorPhoneDevice, intercom_attributes
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class DoorPhoneLock(LockEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Атрибуты для автоматизаций."""
+        """Атрибуты для автоматизаций: параметры домофона и последнее открытие."""
         attributes: dict[str, Any] = {
             "intercom_id": self._intercom_id,
             "last_unlock": self._last_unlock.isoformat() if self._last_unlock else None,
@@ -110,6 +110,8 @@ class DoorPhoneLock(LockEntity):
         if intercom is not None:
             attributes["address"] = intercom.string_view
             attributes["role"] = intercom.role.name
+            # Остальные параметры домофона, не задействованные в логике интеграции
+            attributes.update(intercom_attributes(intercom))
 
         return attributes
 
