@@ -1,7 +1,8 @@
 """Ручная проверка API Ufanet без Home Assistant.
 
-Home Assistant не требуется: нужны только aiohttp и pydantic
-(``pip install aiohttp pydantic``).
+Скрипт авторизуется по номеру договора и печатает список камер
+видеонаблюдения с RTSP-ссылками. Home Assistant не требуется: нужны только
+aiohttp и pydantic (``pip install aiohttp pydantic``).
 
 Учётные данные берутся из переменных окружения, в коде их быть не должно:
 
@@ -46,7 +47,7 @@ _LOGGER = logging.getLogger("UfanetIntercom")
 
 
 async def main() -> int:
-    """Авторизоваться, вывести список домофонов."""
+    """Авторизоваться и вывести список камер видеонаблюдения."""
     contract = os.environ.get("UFANET_CONTRACT")
     password = os.environ.get("UFANET_PASSWORD")
 
@@ -58,7 +59,7 @@ async def main() -> int:
 
     try:
         await api.async_authenticate()
-        intercoms = await api.get_intercoms()
+        cameras = await api.get_cameras()
     except BadRequestUfanetIntercomAPIError as err:
         _LOGGER.error("Ошибка аутентификации: %s", err)
         return 1
@@ -68,12 +69,20 @@ async def main() -> int:
     finally:
         await api.close()
 
-    print("Найдены следующие домофоны:")
-    for intercom in intercoms:
-        print(f"  {intercom.id}: {intercom.string_view} ({intercom.role.name})")
+    if not cameras:
+        print("Камеры не найдены.")
+        return 0
 
-    # Дверь открывается методом api.open_intercom(intercom_id) — например,
-    # для первого домофона из списка: api.open_intercom(intercoms[0].id).
+    print("Найдены следующие камеры:")
+    for camera in cameras:
+        title = camera.title or camera.address or camera.number
+        print(f"  {title}: {camera.rtsp_url or 'RTSP-ссылка недоступна'}")
+        if camera.screenshot_url:
+            print(f"    снапшот: {camera.screenshot_url}")
+
+    # Домофоны возвращает метод api.get_intercoms(), дверь открывается
+    # методом api.open_intercom(intercom_id) — например, для первого домофона
+    # из списка: api.open_intercom(intercoms[0].id).
 
     return 0
 
