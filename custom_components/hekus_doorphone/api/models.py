@@ -1,6 +1,6 @@
 """Модели данных API домофонов Ufanet."""
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -48,6 +48,59 @@ class Intercom(BaseModel):
     relays: Optional[List]
     private_status: int
     scope: str
+
+
+class Servers(BaseModel):
+    """Серверы, обслуживающие камеру видеонаблюдения."""
+
+    server: bool
+    domain: str
+    screenshot_domain: str
+    vendor_name: str
+
+
+class Camera(BaseModel):
+    """Камера видеонаблюдения, доступная аккаунту Ufanet.
+
+    Часть полей может прийти ``null`` (например, у публичных городских камер
+    нет ``servers`` и ``token_r``), поэтому они объявлены необязательными.
+    """
+
+    number: Union[int, str]
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    title: Optional[str] = None
+    address: Optional[str] = None
+    token_l: Optional[str] = None
+    token_r: Optional[str] = None
+    servers: Optional[Servers] = None
+    inactivity_period: Optional[Union[str, int]] = None
+    type: Union[int, str]
+
+    @property
+    def rtsp_url(self) -> Optional[str]:
+        """RTSP-ссылка на живой поток камеры.
+
+        ``token_l`` — живой JWT камеры, поэтому ссылку нужно периодически
+        обновлять повторным запросом списка камер. ``tracks=v1a1`` запрашивает
+        у Flussonic видео- и аудиодорожку.
+        """
+        if self.servers is None or not self.token_l:
+            return None
+        return (
+            f"rtsp://{self.servers.domain}/{self.number}"
+            f"?token={self.token_l}&tracks=v1a1"
+        )
+
+    @property
+    def screenshot_url(self) -> Optional[str]:
+        """Ссылка на актуальный снапшот камеры."""
+        if self.servers is None or not self.token_l:
+            return None
+        return (
+            f"https://{self.servers.screenshot_domain}"
+            f"/api/v0/screenshots/{self.number}~600.jpg?token={self.token_l}"
+        )
 
 
 class HistoryResult(BaseModel):
