@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 import aiohttp
 from aiohttp import ClientSession, ClientTimeout
 from aiohttp.client_exceptions import ClientConnectorError, ContentTypeError
+from pydantic import ValidationError
 
 from .exceptions import (
     BadRequestUfanetIntercomAPIError,
@@ -20,13 +21,14 @@ from .exceptions import (
     UfanetIntercomAPIError,
     UnknownUfanetIntercomAPIError,
 )
-from .models import History, HistoryData, Intercom, Token
+from .models import Camera, History, HistoryData, Intercom, Token
 
 BASE_URL = "https://dom.ufanet.ru/"
 
 AUTH_BY_CONTRACT_PATH = "api/v1/auth/auth_by_contract/"
 TOKEN_VERIFY_PATH = "api-token-verify/"
 INTERCOMS_PATH = "api/v0/skud/shared/"
+CCTV_PATH = "api/v1/cctv/"
 CALL_HISTORY_PATH = "api/v1/skuds/call-history/"
 CALL_HISTORY_LINKS_PATH = "api/v1/cctv/history/"
 
@@ -192,6 +194,28 @@ class UfanetIntercomAPI:
         """Проверить текущий токен; бросает исключение, если он больше не валиден."""
         url = urljoin(self._base_url, TOKEN_VERIFY_PATH)
         await self._send_request(url=url, method="POST", json={"token": self._token}, auth_retry=False)
+
+    async def get_cameras(self) -> List[Camera]:
+        """Вернуть все камеры видеонаблюдения, доступные аккаунту."""
+        url = urljoin(self._base_url, CCTV_PATH)
+        response = await self._send_request(url=url)
+
+        if not isinstance(response, list):
+            self._LOGGER.error("Ответ со списком камер не является списком: %s", response)
+            raise UnknownUfanetIntercomAPIError(
+                f"Ожидался список камер, получено: {response!r}"
+            )
+
+        cameras: List[Camera] = []
+        for item in response:
+            try:
+                cameras.append(Camera(**item))
+            except ValidationError as err:
+                number = item.get("number") if isinstance(item, dict) else None
+                self._LOGGER.warning(
+                    "Камера %s пропущена, ответ не соответствует модели: %s", number, err
+                )
+        return cameras
 
     async def get_intercoms(self) -> List[Intercom]:
         """Вернуть все домофоны, доступные аккаунту."""
