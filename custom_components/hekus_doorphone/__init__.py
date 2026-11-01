@@ -27,7 +27,7 @@ from .device import DoorPhoneDevice, create_devices
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: List[Platform] = [Platform.LOCK, Platform.SENSOR]
+PLATFORMS: List[Platform] = [Platform.IMAGE, Platform.LOCK, Platform.SENSOR]
 
 IntercomsData = Dict[int, Intercom]
 

@@ -28,6 +28,11 @@
     }
   },
   "entity": {
+    "image": {
+      "last_call": {
+        "name": "Last call preview"
+      }
+    },
     "lock": {
       "door_lock": {
         "name": "Door lock"
