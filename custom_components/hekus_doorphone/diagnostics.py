@@ -45,4 +45,25 @@ async def async_get_config_entry_diagnostics(
         "intercoms": [
             _dump(intercom) for intercom in (data.coordinator.data or {}).values()
         ],
+        "call_history": {
+            "last_update_success": data.call_coordinator.last_update_success,
+            "update_interval_seconds": (
+                data.call_coordinator.update_interval.total_seconds()
+                if data.call_coordinator.update_interval
+                else None
+            ),
+            "calls_count": (
+                data.call_coordinator.data.count
+                if data.call_coordinator.data is not None
+                else None
+            ),
+            "calls": [
+                _dump(call)
+                for call in (
+                    data.call_coordinator.data.calls
+                    if data.call_coordinator.data is not None
+                    else []
+                )
+            ],
+        },
     }

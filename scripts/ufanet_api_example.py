@@ -1,8 +1,8 @@
 """Ручная проверка API Ufanet без Home Assistant.
 
 Скрипт авторизуется по номеру договора и печатает список камер
-видеонаблюдения с RTSP-ссылками. Home Assistant не требуется: нужны только
-aiohttp и pydantic (``pip install aiohttp pydantic``).
+видеонаблюдения с RTSP-ссылками и последние вызовы домофона. Home Assistant не
+требуется: нужны только aiohttp и pydantic (``pip install aiohttp pydantic``).
 
 Учётные данные берутся из переменных окружения, в коде их быть не должно:
 
@@ -45,9 +45,12 @@ except ModuleNotFoundError as err:
 logging.basicConfig(level=logging.DEBUG)
 _LOGGER = logging.getLogger("UfanetIntercom")
 
+# Сколько последних вызовов печатать
+CALLS_PAGE_SIZE = 5
+
 
 async def main() -> int:
-    """Авторизоваться и вывести список камер видеонаблюдения."""
+    """Авторизоваться и вывести камеры видеонаблюдения и последние вызовы."""
     contract = os.environ.get("UFANET_CONTRACT")
     password = os.environ.get("UFANET_PASSWORD")
 
@@ -60,6 +63,16 @@ async def main() -> int:
     try:
         await api.async_authenticate()
         cameras = await api.get_cameras()
+        history = await api.get_call_history(page=1, page_size=CALLS_PAGE_SIZE)
+
+        calls = []
+        for call in history.results:
+            try:
+                links = await api.get_call_history_links(call.uuid)
+            except UfanetIntercomAPIError as err:
+                _LOGGER.debug("Ссылки на запись вызова %s недоступны: %s", call.uuid, err)
+                links = None
+            calls.append((call, links))
     except BadRequestUfanetIntercomAPIError as err:
         _LOGGER.error("Ошибка аутентификации: %s", err)
         return 1
@@ -71,14 +84,27 @@ async def main() -> int:
 
     if not cameras:
         print("Камеры не найдены.")
-        return 0
+    else:
+        print("Найдены следующие камеры:")
+        for camera in cameras:
+            title = camera.title or camera.address or camera.number
+            print(f"  {title}: {camera.rtsp_url or 'RTSP-ссылка недоступна'}")
+            if camera.screenshot_url:
+                print(f"    снапшот: {camera.screenshot_url}")
 
-    print("Найдены следующие камеры:")
-    for camera in cameras:
-        title = camera.title or camera.address or camera.number
-        print(f"  {title}: {camera.rtsp_url or 'RTSP-ссылка недоступна'}")
-        if camera.screenshot_url:
-            print(f"    снапшот: {camera.screenshot_url}")
+    print()
+    if not calls:
+        print("Вызовов в истории нет.")
+    else:
+        print(f"Последние вызовы (всего {history.count}):")
+        for call, links in calls:
+            print(
+                f"  {call.called_at.isoformat()} — {call.address}, "
+                f"подъезд {call.porch}, кв. {call.flat}"
+            )
+            if links is not None:
+                print(f"    превью: {links.preview}")
+                print(f"    запись: {links.url}")
 
     # Домофоны возвращает метод api.get_intercoms(), дверь открывается
     # методом api.open_intercom(intercom_id) — например, для первого домофона

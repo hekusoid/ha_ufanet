@@ -21,12 +21,13 @@ from .api.exceptions import (
 )
 from .api.models import Intercom
 from .api.ufanet_api import UfanetIntercomAPI
+from .calls import CallHistoryCoordinator
 from .const import CONF_PASSWORD, CONF_USERNAME, DEFAULT_SCAN_INTERVAL, DOMAIN
 from .device import DoorPhoneDevice, create_devices
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: List[Platform] = [Platform.LOCK]
+PLATFORMS: List[Platform] = [Platform.LOCK, Platform.SENSOR]
 
 IntercomsData = Dict[int, Intercom]
 
@@ -37,6 +38,7 @@ class UfanetDoorPhoneData:
 
     api: UfanetIntercomAPI
     coordinator: DataUpdateCoordinator
+    call_coordinator: CallHistoryCoordinator
     devices: List[DoorPhoneDevice]
 
 
@@ -95,9 +97,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     devices = create_devices(list(coordinator.data.values()))
 
+    # История вызовов опрашивается отдельным координатором со своим интервалом
+    # и не должна блокировать работу замков: если эндпоинт истории недоступен,
+    # интеграция продолжает работу, а координатор повторит опрос по расписанию.
+    call_coordinator = CallHistoryCoordinator(hass, api, username)
+    try:
+        await call_coordinator.async_config_entry_first_refresh()
+    except ConfigEntryNotReady as err:
+        _LOGGER.warning("История вызовов Ufanet пока недоступна: %s", err)
+
     hass.data[DOMAIN][entry.entry_id] = UfanetDoorPhoneData(
         api=api,
         coordinator=coordinator,
+        call_coordinator=call_coordinator,
         devices=devices,
     )
 

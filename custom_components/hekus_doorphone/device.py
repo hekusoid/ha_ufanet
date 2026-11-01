@@ -4,7 +4,11 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Dict, List
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.device_registry import DeviceInfo
+
 from .api.models import Intercom
+from .const import DOMAIN
 
 # Поля Intercom, которые интеграция уже использует в логике (название устройства,
 # DeviceInfo.model, доступность сущности) или которые уже отдаются отдельными
@@ -50,6 +54,20 @@ def intercom_attributes(intercom: Intercom) -> Dict[str, Any]:
         for key, value in data.items()
         if key not in USED_INTERCOM_FIELDS
     }
+
+
+def account_device_info(entry: ConfigEntry) -> DeviceInfo:
+    """Устройство учётной записи Ufanet для общих сущностей договора.
+
+    Замки привязаны к отдельным домофонам, а история вызовов относится ко всему
+    договору, поэтому датчик последнего вызова живёт на отдельном устройстве.
+    """
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"account_{entry.entry_id}")},
+        name=entry.title,
+        manufacturer="Ufanet",
+        model="Личный кабинет dom.ufanet.ru",
+    )
 
 
 class DoorPhoneDevice:

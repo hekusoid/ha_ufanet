@@ -32,6 +32,11 @@
       "door_lock": {
         "name": "Door lock"
       }
+    },
+    "sensor": {
+      "last_call": {
+        "name": "Last call"
+      }
     }
   }
 }
