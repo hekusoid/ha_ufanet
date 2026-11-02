@@ -216,12 +216,13 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
             return None
 
         content = await self._async_grab_frame(binary, source)
-
+        
         if not content or len(content) > CALL_PREVIEW_MAX_BYTES:
             self._failed_uuid = call.uuid
             self._failed_at = now
+            content_length = len(content) if content else 0
             _LOGGER.debug(
-                "Кадр превью вызова %s не получен или слишком большой", call.uuid
+                f"Кадр превью вызова {call.uuid} не получен или слишком большой ({content_length})", 
             )
             return None
 
@@ -255,6 +256,9 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
         self, binary: str, source: str, extra_cmd: Optional[str]
     ) -> Optional[bytes]:
         """Запустить ffmpeg и вернуть JPEG с одним кадром видео."""
+        _LOGGER.debug(
+                        f"Запрашиваем кадр из файла по ссылке [{source}]", 
+                    )
         return await ImageFrame(binary).get_image(
             source,
             output_format=IMAGE_JPEG,
