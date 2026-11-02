@@ -2,14 +2,15 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import time
 from typing import Any, Optional
 
-from aiohttp import ClientError, ClientTimeout
+from haffmpeg.tools import IMAGE_JPEG, ImageFrame
+from homeassistant.components.ffmpeg import DATA_FFMPEG
 from homeassistant.components.image import ImageEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -25,6 +26,7 @@ from .calls import (
 from .const import (
     CALL_PREVIEW_MAX_BYTES,
     CALL_PREVIEW_RETRY_SECONDS,
+    CALL_PREVIEW_SEEK_SECONDS,
     CALL_PREVIEW_TIMEOUT,
     DOMAIN,
 )
@@ -41,24 +43,56 @@ async def async_setup_entry(
     """Добавляем превью последнего вызова для каждого домофона."""
     data: UfanetDoorPhoneData = hass.data[DOMAIN][entry.entry_id]
 
+    # Ufanet отдаёт превью вызова ссылкой на видео, поэтому кадр извлекает
+    # ffmpeg. Он есть во всех официальных установках Home Assistant; если
+    # бинаря нет, сущности создаются, но остаются недоступными, а остальные
+    # сущности интеграции работают как обычно.
+    ffmpeg_binary = await _async_get_ffmpeg_binary(hass)
+
     entities = []
     for device in data.devices:
         if not normalize_camera_number(device.cctv_number):
             continue
-        entities.append(LastCallImage(hass, device, data.call_coordinator))
+        entities.append(
+            LastCallImage(hass, device, data.call_coordinator, ffmpeg_binary)
+        )
 
     async_add_entities(entities)
+
+
+async def _async_get_ffmpeg_binary(hass: HomeAssistant) -> Optional[str]:
+    """Вернуть путь к ffmpeg, если он доступен, иначе ``None``.
+
+    Компонент ``ffmpeg`` подключён как зависимость интеграции, поэтому его
+    менеджер уже создан. Отсутствие бинаря не ошибка: превью просто не будет.
+    """
+    manager = hass.data.get(DATA_FFMPEG)
+    if manager is None:
+        _LOGGER.warning(
+            "Компонент ffmpeg не инициализирован: превью вызова недоступно"
+        )
+        return None
+
+    binary = manager.binary
+    if await hass.async_add_executor_job(shutil.which, binary) is None:
+        _LOGGER.warning(
+            "ffmpeg не найден (%s): превью последнего вызова будет недоступно", binary
+        )
+        return None
+
+    return binary
 
 
 class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
     """Превью последнего вызова домофона.
 
-    Изображение — превью звонка из истории Ufanet. Вызов относится к домофону,
-    если ``camera_number`` вызова совпадает с ``cctv_number`` домофона.
-    ``image_last_updated`` равен времени вызова, поэтому при новом звонке
-    состояние меняется и Home Assistant сам перезапрашивает картинку. Байты
-    кэшируются в памяти: превью конкретного вызова не меняется, а ссылка на
-    него — временная.
+    Ufanet отдаёт превью звонка ссылкой на видео, поэтому кадр извлекает
+    ffmpeg: он читает видео по ссылке и возвращает один кадр JPEG. Вызов
+    относится к домофону, если ``camera_number`` вызова совпадает с
+    ``cctv_number`` домофона. ``image_last_updated`` равен времени вызова,
+    поэтому при новом звонке состояние меняется и Home Assistant сам
+    перезапрашивает картинку. Кадр кэшируется в памяти: превью конкретного
+    вызова не меняется, а ссылка на него — временная.
     """
 
     _attr_has_entity_name = True
@@ -70,6 +104,7 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
         hass: HomeAssistant,
         device: DoorPhoneDevice,
         coordinator: CallHistoryCoordinator,
+        ffmpeg_binary: Optional[str],
     ) -> None:
         """Создать сущность с превью для указанного домофона."""
         CoordinatorEntity.__init__(self, coordinator)
@@ -77,6 +112,7 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
 
         self._device = device
         self._cctv_number = normalize_camera_number(device.cctv_number)
+        self._ffmpeg_binary = ffmpeg_binary
 
         self._attr_unique_id = f"intercom_{device.intercom_id}_last_call_preview"
         self._attr_device_info = device.device_info
@@ -131,8 +167,12 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
 
     @property
     def available(self) -> bool:
-        """Превью доступно, пока есть история и ссылка на превью."""
-        return super().available and self._last_links() is not None
+        """Превью доступно, пока есть история, ссылка и ffmpeg."""
+        return (
+            super().available
+            and self._ffmpeg_binary is not None
+            and self._last_links() is not None
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -143,21 +183,25 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
         return call_attributes(call, self._last_links())
 
     async def async_image(self) -> Optional[bytes]:
-        """Вернуть JPEG с превью последнего вызова.
+        """Вернуть JPEG с кадром из видео превью последнего вызова.
 
-        Home Assistant вызывает метод при каждом обращении к картинке, поэтому
-        байты кэшируются по ``uuid`` вызова, а после неудачной попытки делается
+        Ufanet отдаёт превью вызова ссылкой на видео, поэтому кадр извлекает
+        ffmpeg: он читает видео по ссылке и возвращает один кадр. Home Assistant
+        вызывает метод при каждом обращении к картинке, поэтому байты
+        кэшируются по ``uuid`` вызова, а после неудачной попытки делается
         пауза ``CALL_PREVIEW_RETRY_SECONDS``, чтобы не повторять запросы в цикле.
         """
         call = self._last_call()
         links = self._last_links()
-        if call is None or links is None or not links.preview:
+        source = (links.preview or links.url) if links is not None else None
+        binary = self._ffmpeg_binary
+        if call is None or not source or binary is None:
             return None
 
         if self._image_uuid == call.uuid and self._image is not None:
             return self._image
 
-        # Новый вызов: пробуем скачать сразу, не дожидаясь паузы после
+        # Новый вызов: пробуем получить кадр сразу, не дожидаясь паузы после
         # неудачной попытки для предыдущего вызова.
         if self._failed_uuid != call.uuid:
             self._failed_uuid = None
@@ -171,30 +215,14 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
         ):
             return None
 
-        session = async_get_clientsession(self.hass)
-        try:
-            async with session.get(
-                links.preview, timeout=ClientTimeout(total=CALL_PREVIEW_TIMEOUT)
-            ) as response:
-                if response.status != 200:
-                    raise ClientError(f"HTTP {response.status}")
-                content_length = response.content_length
-                if (
-                    content_length is not None
-                    and content_length > CALL_PREVIEW_MAX_BYTES
-                ):
-                    raise ClientError(f"ответ слишком большой: {content_length} байт")
-                content = await response.read()
-        except (ClientError, TimeoutError, ValueError) as err:
-            self._failed_uuid = call.uuid
-            self._failed_at = now
-            _LOGGER.debug("Не удалось скачать превью вызова %s: %s", call.uuid, err)
-            return None
+        content = await self._async_grab_frame(binary, source)
 
         if not content or len(content) > CALL_PREVIEW_MAX_BYTES:
             self._failed_uuid = call.uuid
             self._failed_at = now
-            _LOGGER.debug("Превью вызова %s пустое или слишком большое", call.uuid)
+            _LOGGER.debug(
+                "Кадр превью вызова %s не получен или слишком большой", call.uuid
+            )
             return None
 
         self._image_uuid = call.uuid
@@ -202,3 +230,34 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
         self._failed_uuid = None
         self._failed_at = None
         return content
+
+    async def _async_grab_frame(self, binary: str, source: str) -> Optional[bytes]:
+        """Извлечь один кадр JPEG из видео по ссылке через ffmpeg.
+
+        Кадр берётся не с самого начала записи: первые кадры часто тёмные.
+        Если ролик короче позиции перемотки, ffmpeg не вернёт кадр — тогда
+        повторяем без перемотки.
+        """
+        seek = (
+            f"-ss {CALL_PREVIEW_SEEK_SECONDS}" if CALL_PREVIEW_SEEK_SECONDS else None
+        )
+        try:
+            content = await self._async_ffmpeg_frame(binary, source, seek)
+            if content is None and seek is not None:
+                content = await self._async_ffmpeg_frame(binary, source, None)
+        except (OSError, ValueError) as err:
+            _LOGGER.debug("Не удалось извлечь кадр из %s: %s", source, err)
+            return None
+
+        return content
+
+    async def _async_ffmpeg_frame(
+        self, binary: str, source: str, extra_cmd: Optional[str]
+    ) -> Optional[bytes]:
+        """Запустить ffmpeg и вернуть JPEG с одним кадром видео."""
+        return await ImageFrame(binary).get_image(
+            source,
+            output_format=IMAGE_JPEG,
+            extra_cmd=extra_cmd,
+            timeout=CALL_PREVIEW_TIMEOUT,
+        )

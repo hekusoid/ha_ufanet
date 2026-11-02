@@ -3,6 +3,7 @@
   "name": "Hekus DoorPhone",
   "codeowners": ["@hekusoid"],
   "config_flow": true,
+  "dependencies": ["ffmpeg"],
   "documentation": "https://github.com/hekusoid/ha_ufanet",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
