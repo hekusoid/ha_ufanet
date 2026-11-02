@@ -26,7 +26,6 @@ from .calls import (
 from .const import (
     CALL_PREVIEW_MAX_BYTES,
     CALL_PREVIEW_RETRY_SECONDS,
-    CALL_PREVIEW_SEEK_SECONDS,
     CALL_PREVIEW_TIMEOUT,
     DOMAIN,
 )
@@ -216,13 +215,15 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
             return None
 
         content = await self._async_grab_frame(binary, source)
-        
+
         if not content or len(content) > CALL_PREVIEW_MAX_BYTES:
             self._failed_uuid = call.uuid
             self._failed_at = now
             content_length = len(content) if content else 0
             _LOGGER.debug(
-                f"Кадр превью вызова {call.uuid} не получен или слишком большой ({content_length})", 
+                "Кадр превью вызова %s не получен или слишком большой (%s)",
+                call.uuid,
+                content_length,
             )
             return None
 
@@ -233,35 +234,16 @@ class LastCallImage(CoordinatorEntity[CallHistoryCoordinator], ImageEntity):
         return content
 
     async def _async_grab_frame(self, binary: str, source: str) -> Optional[bytes]:
-        """Извлечь один кадр JPEG из видео по ссылке через ffmpeg.
-
-        Кадр берётся не с самого начала записи: первые кадры часто тёмные.
-        Если ролик короче позиции перемотки, ffmpeg не вернёт кадр — тогда
-        повторяем без перемотки.
-        """
-        seek = (
-            f"-ss {CALL_PREVIEW_SEEK_SECONDS}" if CALL_PREVIEW_SEEK_SECONDS else None
-        )
+        """Извлечь первый кадр JPEG из видео по ссылке через ffmpeg."""
+        _LOGGER.debug("Запрашиваем кадр из файла по ссылке [%s]", source)
         try:
-            content = await self._async_ffmpeg_frame(binary, source, seek)
-            if content is None and seek is not None:
-                content = await self._async_ffmpeg_frame(binary, source, None)
+            content = await ImageFrame(binary).get_image(
+                source,
+                output_format=IMAGE_JPEG,
+                timeout=CALL_PREVIEW_TIMEOUT,
+            )
         except (OSError, ValueError) as err:
             _LOGGER.debug("Не удалось извлечь кадр из %s: %s", source, err)
             return None
 
         return content
-
-    async def _async_ffmpeg_frame(
-        self, binary: str, source: str, extra_cmd: Optional[str]
-    ) -> Optional[bytes]:
-        """Запустить ffmpeg и вернуть JPEG с одним кадром видео."""
-        _LOGGER.debug(
-                        f"Запрашиваем кадр из файла по ссылке [{source}]", 
-                    )
-        return await ImageFrame(binary).get_image(
-            source,
-            output_format=IMAGE_JPEG,
-            extra_cmd=extra_cmd,
-            timeout=CALL_PREVIEW_TIMEOUT,
-        )
