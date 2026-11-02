@@ -45,6 +45,14 @@ async def async_get_config_entry_diagnostics(
         "intercoms": [
             _dump(intercom) for intercom in (data.coordinator.data or {}).values()
         ],
+        "devices": [
+            {
+                "intercom_id": device.intercom_id,
+                "name": device.name,
+                "cctv_number": device.cctv_number,
+            }
+            for device in data.devices
+        ],
         "call_history": {
             "last_update_success": data.call_coordinator.last_update_success,
             "update_interval_seconds": (
@@ -52,18 +60,19 @@ async def async_get_config_entry_diagnostics(
                 if data.call_coordinator.update_interval
                 else None
             ),
-            "calls_count": (
-                data.call_coordinator.data.count
-                if data.call_coordinator.data is not None
-                else None
-            ),
-            "calls": [
-                _dump(call)
-                for call in (
-                    data.call_coordinator.data.calls
-                    if data.call_coordinator.data is not None
-                    else []
-                )
-            ],
+            "by_intercom": {
+                cctv_number: {
+                    "calls_count": history.count,
+                    "last_call_uuid": (
+                        history.last_call.uuid
+                        if history.last_call is not None
+                        else None
+                    ),
+                    "calls": [_dump(call) for call in history.calls],
+                }
+                for cctv_number, history in (
+                    data.call_coordinator.data or {}
+                ).items()
+            },
         },
     }

@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Dict, List
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .api.models import Intercom
@@ -56,20 +55,6 @@ def intercom_attributes(intercom: Intercom) -> Dict[str, Any]:
     }
 
 
-def account_device_info(entry: ConfigEntry) -> DeviceInfo:
-    """Устройство учётной записи Ufanet для общих сущностей договора.
-
-    Замки привязаны к отдельным домофонам, а история вызовов относится ко всему
-    договору, поэтому датчик последнего вызова живёт на отдельном устройстве.
-    """
-    return DeviceInfo(
-        identifiers={(DOMAIN, f"account_{entry.entry_id}")},
-        name=entry.title,
-        manufacturer="Ufanet",
-        model="Личный кабинет dom.ufanet.ru",
-    )
-
-
 class DoorPhoneDevice:
     """Домофон, доступный в аккаунте Ufanet."""
 
@@ -98,6 +83,25 @@ class DoorPhoneDevice:
     def model(self) -> str:
         """Модель для реестра устройств."""
         return f"Intercom (model {self.intercom.model})"
+
+    @property
+    def cctv_number(self) -> str:
+        """Номер камеры домофона.
+
+        История вызовов привязывается к домофону по совпадению ``camera_number``
+        вызова с этим номером.
+        """
+        return self.intercom.cctv_number
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Описание устройства домофона для реестра Home Assistant."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.device_id)},
+            name=self.name,
+            manufacturer="Ufanet",
+            model=self.model,
+        )
 
 
 def create_devices(intercoms: List[Intercom]) -> List[DoorPhoneDevice]:

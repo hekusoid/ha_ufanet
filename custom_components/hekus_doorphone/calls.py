@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Collection, Dict, List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from homeassistant.core import HomeAssistant
@@ -21,6 +21,7 @@ from .api.exceptions import (
 from .api.models import HistoryData, HistoryResult
 from .api.ufanet_api import UfanetIntercomAPI
 from .const import (
+    CALL_HISTORY_LINKED_CALLS,
     CALL_HISTORY_LINK_ATTEMPTS,
     CALL_HISTORY_PAGE_SIZE,
     CALL_HISTORY_SCAN_INTERVAL,
@@ -32,22 +33,40 @@ _LOGGER = logging.getLogger(__name__)
 # Ключи атрибутов сущностей истории вызовов
 ATTR_CALLS = "calls"
 ATTR_CALLS_COUNT = "calls_count"
+ATTR_CALLS_TOTAL = "calls_total"
+ATTR_CCTV_NUMBER = "cctv_number"
 ATTR_RECORDING_URL = "recording_url"
 ATTR_PREVIEW_URL = "preview_url"
 
 
+def normalize_camera_number(value: Optional[str]) -> str:
+    """Привести номер камеры к виду, пригодному для сравнения."""
+    return (value or "").strip().casefold()
+
+
 @dataclass
 class CallHistory:
-    """Последние вызовы домофона и ссылки на записи этих вызовов."""
+    """Вызовы одного домофона и ссылки на записи этих вызовов."""
 
-    count: int
-    calls: List[HistoryResult]
+    calls: List[HistoryResult] = field(default_factory=list)
     links: Dict[str, HistoryData] = field(default_factory=dict)
+    total_count: int = 0
+
+    @property
+    def count(self) -> int:
+        """Сколько вызовов домофона попало в загруженную страницу истории."""
+        return len(self.calls)
 
     @property
     def last_call(self) -> Optional[HistoryResult]:
-        """Самый свежий вызов: API отдаёт историю от новых к старым."""
+        """Самый свежий вызов домофона: API отдаёт историю от новых к старым."""
         return self.calls[0] if self.calls else None
+
+    @property
+    def last_links(self) -> Optional[HistoryData]:
+        """Ссылки на запись и превью последнего вызова домофона."""
+        call = self.last_call
+        return self.links.get(call.uuid) if call is not None else None
 
 
 def call_datetime(call: HistoryResult) -> datetime:
@@ -90,18 +109,24 @@ def call_attributes(
     return attributes
 
 
-class CallHistoryCoordinator(DataUpdateCoordinator[CallHistory]):
-    """Опрос истории вызовов с кэшем ссылок на записи и превью.
+class CallHistoryCoordinator(DataUpdateCoordinator[Dict[str, CallHistory]]):
+    """Опрос истории вызовов с распределением вызовов по домофонам.
 
-    Ссылки на запись конкретного вызова запрашиваются отдельным методом API,
-    поэтому они получаются один раз на новый вызов и переиспользуются при
-    следующих опросах.
+    API отдаёт историю всего договора и не умеет фильтровать её по камере,
+    поэтому запрашивается одна страница вызовов, а затем она делится по номеру
+    камеры: ``camera_number`` вызова совпадает с ``cctv_number`` домофона.
+    Ссылки на запись и превью запрашиваются отдельным методом API, получаются
+    один раз на вызов и переиспользуются при следующих опросах.
     """
 
     def __init__(
-        self, hass: HomeAssistant, api: UfanetIntercomAPI, username: str
+        self,
+        hass: HomeAssistant,
+        api: UfanetIntercomAPI,
+        username: str,
+        cctv_numbers: Collection[str],
     ) -> None:
-        """Создать координатор истории вызовов для указанного договора."""
+        """Создать координатор истории вызовов для домофонов договора."""
         super().__init__(
             hass,
             _LOGGER,
@@ -110,11 +135,21 @@ class CallHistoryCoordinator(DataUpdateCoordinator[CallHistory]):
         )
         self._api = api
         self._username = username
+        # Номера камер домофонов договора в виде, пригодном для сравнения.
+        # Список, а не множество: порядок нужен для стабильного вывода данных.
+        self._cctv_numbers: List[str] = list(
+            dict.fromkeys(
+                number
+                for number in map(normalize_camera_number, cctv_numbers)
+                if number
+            )
+        )
         self._links: Dict[str, HistoryData] = {}
         self._link_failures: Dict[str, int] = {}
+        self._unmatched_logged: set[str] = set()
 
-    async def _async_update_data(self) -> CallHistory:
-        """Запросить первую страницу истории вызовов и ссылки на записи."""
+    async def _async_update_data(self) -> Dict[str, CallHistory]:
+        """Запросить историю договора и распределить вызовы по домофонам."""
         try:
             history = await self._api.get_call_history(
                 page=1, page_size=CALL_HISTORY_PAGE_SIZE
@@ -131,10 +166,49 @@ class CallHistoryCoordinator(DataUpdateCoordinator[CallHistory]):
         calls = list(history.results)
         self._prune(calls)
 
+        calls_by_camera: Dict[str, List[HistoryResult]] = {}
+        unmatched: List[HistoryResult] = []
         for call in calls:
-            await self._async_ensure_links(call)
+            camera_number = normalize_camera_number(call.camera_number)
+            if camera_number not in self._cctv_numbers:
+                unmatched.append(call)
+                continue
+            calls_by_camera.setdefault(camera_number, []).append(call)
 
-        return CallHistory(count=history.count, calls=calls, links=dict(self._links))
+        self._log_unmatched(unmatched)
+
+        data: Dict[str, CallHistory] = {}
+        for cctv_number in self._cctv_numbers:
+            intercom_calls = calls_by_camera.get(cctv_number, [])
+
+            # Ссылки нужны только свежим вызовам домофона: у старых записей
+            # превью и запись уже не запрашиваются, чтобы не тратить запросы.
+            for call in intercom_calls[:CALL_HISTORY_LINKED_CALLS]:
+                await self._async_ensure_links(call)
+
+            data[cctv_number] = CallHistory(
+                calls=intercom_calls,
+                links={
+                    call.uuid: self._links[call.uuid]
+                    for call in intercom_calls
+                    if call.uuid in self._links
+                },
+                total_count=history.count,
+            )
+
+        return data
+
+    def _log_unmatched(self, calls: List[HistoryResult]) -> None:
+        """Записать в лог вызовы, не относящиеся ни к одному домофону договора."""
+        for call in calls:
+            if call.uuid in self._unmatched_logged:
+                continue
+            self._unmatched_logged.add(call.uuid)
+            _LOGGER.debug(
+                "Вызов %s с камеры %s не относится ни к одному домофону договора",
+                call.uuid,
+                call.camera_number,
+            )
 
     def _prune(self, calls: List[HistoryResult]) -> None:
         """Выбросить из кэша ссылки на вызовы, которых уже нет в истории."""
@@ -147,6 +221,7 @@ class CallHistoryCoordinator(DataUpdateCoordinator[CallHistory]):
             for uuid, attempts in self._link_failures.items()
             if uuid in uuids
         }
+        self._unmatched_logged &= uuids
 
     async def _async_ensure_links(self, call: HistoryResult) -> None:
         """Получить ссылки на запись и превью, если их ещё нет в кэше.

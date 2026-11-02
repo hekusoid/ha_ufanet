@@ -100,7 +100,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # История вызовов опрашивается отдельным координатором со своим интервалом
     # и не должна блокировать работу замков: если эндпоинт истории недоступен,
     # интеграция продолжает работу, а координатор повторит опрос по расписанию.
-    call_coordinator = CallHistoryCoordinator(hass, api, username)
+    call_coordinator = CallHistoryCoordinator(
+        hass,
+        api,
+        username,
+        [device.cctv_number for device in devices],
+    )
     try:
         await call_coordinator.async_config_entry_first_refresh()
     except ConfigEntryNotReady as err:

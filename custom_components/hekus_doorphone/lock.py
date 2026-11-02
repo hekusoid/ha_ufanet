@@ -9,7 +9,6 @@ from homeassistant.components.lock import LockEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -65,20 +64,11 @@ class DoorPhoneLock(LockEntity):
         self._coordinator = coordinator
 
         self._attr_unique_id = f"intercom_{self._intercom_id}_lock"
+        self._attr_device_info = doorphone.device_info
         self._attr_is_locked = True
 
         self._last_unlock: datetime | None = None
         self._relock_cancel: CALLBACK_TYPE | None = None
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Устройство домофона, к которому привязан замок."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device.device_id)},
-            name=self._device.name,
-            manufacturer="Ufanet",
-            model=self._device.model,
-        )
 
     @property
     def _intercom(self) -> Intercom | None:

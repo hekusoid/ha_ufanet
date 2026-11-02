@@ -7,5 +7,5 @@
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/hekusoid/ha_ufanet/issues",
-  "version": "0.3.0"
+  "version": "0.4.0"
 }
