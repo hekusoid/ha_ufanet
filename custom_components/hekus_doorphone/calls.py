@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Collection, Dict, List, Optional
+from typing import Any, Collection, Dict, Iterable, List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from homeassistant.core import HomeAssistant
@@ -44,31 +44,6 @@ def normalize_camera_number(value: Optional[str]) -> str:
     return (value or "").strip().casefold()
 
 
-@dataclass
-class CallHistory:
-    """Вызовы одного домофона и ссылки на записи этих вызовов."""
-
-    calls: List[HistoryResult] = field(default_factory=list)
-    links: Dict[str, HistoryData] = field(default_factory=dict)
-    total_count: int = 0
-
-    @property
-    def count(self) -> int:
-        """Сколько вызовов домофона попало в загруженную страницу истории."""
-        return len(self.calls)
-
-    @property
-    def last_call(self) -> Optional[HistoryResult]:
-        """Самый свежий вызов домофона: API отдаёт историю от новых к старым."""
-        return self.calls[0] if self.calls else None
-
-    @property
-    def last_links(self) -> Optional[HistoryData]:
-        """Ссылки на запись и превью последнего вызова домофона."""
-        call = self.last_call
-        return self.links.get(call.uuid) if call is not None else None
-
-
 def call_datetime(call: HistoryResult) -> datetime:
     """Время вызова в часовом поясе Home Assistant.
 
@@ -84,6 +59,63 @@ def call_datetime(call: HistoryResult) -> datetime:
             called_at = called_at.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
 
     return dt_util.as_local(called_at)
+
+
+def calls_by_time(calls: Iterable[HistoryResult]) -> List[HistoryResult]:
+    """Вызовы от новых к старым по полю ``called_at``.
+
+    Порядок ответа API не гарантируется, поэтому время вызова сравнивается
+    явно. Сортируется только копия: исходный список остаётся как пришёл от
+    API. Ключ — нормализованное время, поэтому сравнение корректно и при
+    разных часовых поясах; ``uuid`` служит тай-брейком при равном времени.
+    """
+    return sorted(
+        calls,
+        key=lambda call: (call_datetime(call), call.uuid),
+        reverse=True,
+    )
+
+
+@dataclass
+class CallHistory:
+    """Вызовы одного домофона и ссылки на записи этих вызовов.
+
+    ``calls`` хранится в том порядке, в котором вызовы пришли от API: так его
+    видно в атрибутах датчика и в диагностике. Последний вызов и самые свежие
+    вызовы определяются по времени ``called_at``.
+    """
+
+    calls: List[HistoryResult] = field(default_factory=list)
+    links: Dict[str, HistoryData] = field(default_factory=dict)
+    total_count: int = 0
+
+    @property
+    def count(self) -> int:
+        """Сколько вызовов домофона попало в загруженную страницу истории."""
+        return len(self.calls)
+
+    @property
+    def last_call(self) -> Optional[HistoryResult]:
+        """Самый свежий вызов домофона по полю ``called_at``."""
+        if not self.calls:
+            return None
+        return max(self.calls, key=call_datetime)
+
+    def recent_calls(self, limit: int) -> List[HistoryResult]:
+        """Самые свежие вызовы домофона по полю ``called_at``.
+
+        Используются для запроса ссылок на запись и превью: у старых вызовов
+        эти ссылки уже не нужны, а порядок ответа API на них не влияет.
+        """
+        if limit <= 0:
+            return []
+        return calls_by_time(self.calls)[:limit]
+
+    @property
+    def last_links(self) -> Optional[HistoryData]:
+        """Ссылки на запись и превью последнего вызова домофона."""
+        call = self.last_call
+        return self.links.get(call.uuid) if call is not None else None
 
 
 def call_attributes(
@@ -115,6 +147,8 @@ class CallHistoryCoordinator(DataUpdateCoordinator[Dict[str, CallHistory]]):
     API отдаёт историю всего договора и не умеет фильтровать её по камере,
     поэтому запрашивается одна страница вызовов, а затем она делится по номеру
     камеры: ``camera_number`` вызова совпадает с ``cctv_number`` домофона.
+    Порядок вызовов в ответе API не гарантируется: последний вызов и самые
+    свежие вызовы определяются по времени ``called_at``.
     Ссылки на запись и превью запрашиваются отдельным методом API, получаются
     один раз на вызов и переиспользуются при следующих опросах.
     """
@@ -179,22 +213,22 @@ class CallHistoryCoordinator(DataUpdateCoordinator[Dict[str, CallHistory]]):
 
         data: Dict[str, CallHistory] = {}
         for cctv_number in self._cctv_numbers:
-            intercom_calls = calls_by_camera.get(cctv_number, [])
-
-            # Ссылки нужны только свежим вызовам домофона: у старых записей
-            # превью и запись уже не запрашиваются, чтобы не тратить запросы.
-            for call in intercom_calls[:CALL_HISTORY_LINKED_CALLS]:
-                await self._async_ensure_links(call)
-
-            data[cctv_number] = CallHistory(
-                calls=intercom_calls,
-                links={
-                    call.uuid: self._links[call.uuid]
-                    for call in intercom_calls
-                    if call.uuid in self._links
-                },
+            history_calls = CallHistory(
+                calls=calls_by_camera.get(cctv_number, []),
                 total_count=history.count,
             )
+
+            # Ссылки нужны только свежим вызовам домофона, а порядок ответа API
+            # не гарантируется: время вызова сравнивается явно по called_at.
+            for call in history_calls.recent_calls(CALL_HISTORY_LINKED_CALLS):
+                await self._async_ensure_links(call)
+
+            history_calls.links = {
+                call.uuid: self._links[call.uuid]
+                for call in history_calls.calls
+                if call.uuid in self._links
+            }
+            data[cctv_number] = history_calls
 
         return data
 
