@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Collection, Dict, Iterable, List, Optional
+from typing import Any, Collection, Dict, List, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from homeassistant.core import HomeAssistant
@@ -21,7 +21,6 @@ from .api.exceptions import (
 from .api.models import HistoryData, HistoryResult
 from .api.ufanet_api import UfanetIntercomAPI
 from .const import (
-    CALL_HISTORY_LINKED_CALLS,
     CALL_HISTORY_LINK_ATTEMPTS,
     CALL_HISTORY_PAGE_SIZE,
     CALL_HISTORY_SCAN_INTERVAL,
@@ -61,28 +60,14 @@ def call_datetime(call: HistoryResult) -> datetime:
     return dt_util.as_local(called_at)
 
 
-def calls_by_time(calls: Iterable[HistoryResult]) -> List[HistoryResult]:
-    """Вызовы от новых к старым по полю ``called_at``.
-
-    Порядок ответа API не гарантируется, поэтому время вызова сравнивается
-    явно. Сортируется только копия: исходный список остаётся как пришёл от
-    API. Ключ — нормализованное время, поэтому сравнение корректно и при
-    разных часовых поясах; ``uuid`` служит тай-брейком при равном времени.
-    """
-    return sorted(
-        calls,
-        key=lambda call: (call_datetime(call), call.uuid),
-        reverse=True,
-    )
-
-
 @dataclass
 class CallHistory:
     """Вызовы одного домофона и ссылки на записи этих вызовов.
 
     ``calls`` хранится в том порядке, в котором вызовы пришли от API: так его
-    видно в атрибутах датчика и в диагностике. Последний вызов и самые свежие
-    вызовы определяются по времени ``called_at``.
+    видно в атрибутах датчика и в диагностике. Последний вызов определяется
+    по времени ``called_at``, ссылки на запись и превью запрашиваются только
+    для него.
     """
 
     calls: List[HistoryResult] = field(default_factory=list)
@@ -100,16 +85,6 @@ class CallHistory:
         if not self.calls:
             return None
         return max(self.calls, key=call_datetime)
-
-    def recent_calls(self, limit: int) -> List[HistoryResult]:
-        """Самые свежие вызовы домофона по полю ``called_at``.
-
-        Используются для запроса ссылок на запись и превью: у старых вызовов
-        эти ссылки уже не нужны, а порядок ответа API на них не влияет.
-        """
-        if limit <= 0:
-            return []
-        return calls_by_time(self.calls)[:limit]
 
     @property
     def last_links(self) -> Optional[HistoryData]:
@@ -147,10 +122,10 @@ class CallHistoryCoordinator(DataUpdateCoordinator[Dict[str, CallHistory]]):
     API отдаёт историю всего договора и не умеет фильтровать её по камере,
     поэтому запрашивается одна страница вызовов, а затем она делится по номеру
     камеры: ``camera_number`` вызова совпадает с ``cctv_number`` домофона.
-    Порядок вызовов в ответе API не гарантируется: последний вызов и самые
-    свежие вызовы определяются по времени ``called_at``.
-    Ссылки на запись и превью запрашиваются отдельным методом API, получаются
-    один раз на вызов и переиспользуются при следующих опросах.
+    Порядок вызовов в ответе API не гарантируется: последний вызов
+    определяется по времени ``called_at``.
+    Ссылки на запись и превью запрашиваются отдельным методом API только для
+    последнего вызова домофона и переиспользуются, пока он остаётся последним.
     """
 
     def __init__(
@@ -218,16 +193,16 @@ class CallHistoryCoordinator(DataUpdateCoordinator[Dict[str, CallHistory]]):
                 total_count=history.count,
             )
 
-            # Ссылки нужны только свежим вызовам домофона, а порядок ответа API
-            # не гарантируется: время вызова сравнивается явно по called_at.
-            for call in history_calls.recent_calls(CALL_HISTORY_LINKED_CALLS):
-                await self._async_ensure_links(call)
+            # Ссылки на запись и превью нужны только для последнего вызова:
+            # это отдельный запрос к API, а у остальных вызовов ссылки уже не
+            # используются. Полученная ссылка переиспользуется, пока вызов
+            # остаётся последним.
+            last_call = history_calls.last_call
+            if last_call is not None:
+                await self._async_ensure_links(last_call)
+                if last_call.uuid in self._links:
+                    history_calls.links[last_call.uuid] = self._links[last_call.uuid]
 
-            history_calls.links = {
-                call.uuid: self._links[call.uuid]
-                for call in history_calls.calls
-                if call.uuid in self._links
-            }
             data[cctv_number] = history_calls
 
         return data
