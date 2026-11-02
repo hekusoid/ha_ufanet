@@ -42,7 +42,7 @@ except ModuleNotFoundError as err:
         "Установите зависимости командой: pip install aiohttp pydantic"
     ) from err
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger("UfanetIntercom")
 
 # Сколько последних вызовов печатать
@@ -59,9 +59,13 @@ async def main() -> int:
         return 1
 
     api = UfanetIntercomAPI(contract=contract, password=password)
+    cameras = []
+    history = []
+    intercoms = []
 
     try:
         await api.async_authenticate()
+        intercoms = await api.get_intercoms()
         cameras = await api.get_cameras()
         history = await api.get_call_history(page=1, page_size=CALLS_PAGE_SIZE)
 
@@ -81,6 +85,14 @@ async def main() -> int:
         return 1
     finally:
         await api.close()
+
+
+    if not intercoms:
+        print("Домофоны не найдены.")
+    else:
+        print("Найдены следующие домофоны:")
+        for intercom in intercoms:
+            print(f"  {intercom.string_view} ({intercom.role.name})")
 
     if not cameras:
         print("Камеры не найдены.")
