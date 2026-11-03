@@ -10,7 +10,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api.exceptions import (
@@ -22,8 +24,19 @@ from .api.exceptions import (
 from .api.models import Intercom
 from .api.ufanet_api import UfanetIntercomAPI
 from .calls import CallHistoryCoordinator
-from .const import CONF_PASSWORD, CONF_USERNAME, DEFAULT_SCAN_INTERVAL, DOMAIN
-from .device import DoorPhoneDevice, create_devices
+from .const import (
+    CONF_EXCLUDED_INTERCOMS,
+    CONF_PASSWORD,
+    CONF_USERNAME,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
+from .device import (
+    DoorPhoneDevice,
+    create_devices,
+    excluded_intercom_ids,
+    intercom_id_from_identifiers,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,7 +108,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Первый опрос: поднимет ConfigEntryAuthFailed / ConfigEntryNotReady сам.
     await coordinator.async_config_entry_first_refresh()
 
-    devices = create_devices(list(coordinator.data.values()))
+    excluded = excluded_intercom_ids(entry.options)
+    devices = [
+        device
+        for device in create_devices(list(coordinator.data.values()))
+        if device.intercom_id not in excluded
+    ]
+    if excluded:
+        _LOGGER.debug(
+            "Ufanet Door Phone: домофоны %s исключены пользователем и пропущены",
+            sorted(excluded),
+        )
+
+    # Устройства, которых больше нет в аккаунте, интеграция не удаляет сама:
+    # сбой API не должен стоить пользователю истории. В лог лишь пишется
+    # подсказка, что такое устройство можно удалить вручную.
+    _log_devices_missing_in_account(hass, entry, set(coordinator.data))
 
     # История вызовов опрашивается отдельным координатором со своим интервалом
     # и не должна блокировать работу замков: если эндпоинт истории недоступен,
@@ -119,11 +147,66 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
-    _LOGGER.debug("Ufanet Door Phone: найдено домофонов — %s (договор %s)",
-                  len(devices), username)
+    _LOGGER.debug(
+        "Ufanet Door Phone: найдено домофонов — %s (договор %s)",
+        len(devices),
+        username,
+    )
 
     return True
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device_entry: DeviceEntry
+) -> bool:
+    """Разрешить удаление устройства и не создавать его снова.
+
+    Home Assistant вызывает этот хук, когда пользователь удаляет устройство
+    интеграции. Устройство удаляется вместе с сущностями, а номер домофона
+    попадает в список исключённых: следующий запуск не восстановит устройство.
+    """
+    intercom_id = intercom_id_from_identifiers(device_entry.identifiers)
+    if intercom_id is None:
+        return False
+
+    excluded = excluded_intercom_ids(entry.options) | {intercom_id}
+    hass.config_entries.async_update_entry(
+        entry,
+        options={**entry.options, CONF_EXCLUDED_INTERCOMS: sorted(excluded)},
+    )
+    _LOGGER.debug(
+        "Ufanet Door Phone: домофон %s удалён и исключён из интеграции",
+        intercom_id,
+    )
+    return True
+
+
+async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Перезагрузить запись после смены набора домофонов в опциях."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+def _log_devices_missing_in_account(
+    hass: HomeAssistant, entry: ConfigEntry, known_ids: set[int]
+) -> None:
+    """Подсказать в логе устройства, которых больше нет в аккаунте Ufanet."""
+    if not known_ids:
+        # Пустой ответ API — вероятнее сбой, чем пустой аккаунт: не шумим.
+        return
+
+    registry = dr.async_get(hass)
+    for device_entry in dr.async_entries_for_config_entry(registry, entry.entry_id):
+        intercom_id = intercom_id_from_identifiers(device_entry.identifiers)
+        if intercom_id is None or intercom_id in known_ids:
+            continue
+        _LOGGER.debug(
+            "Ufanet Door Phone: домофона %s больше нет в аккаунте, устройство %s "
+            "можно удалить вручную",
+            intercom_id,
+            device_entry.id,
+        )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

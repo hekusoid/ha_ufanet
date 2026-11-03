@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .api.models import Intercom
-from .const import DOMAIN
+from .const import CONF_EXCLUDED_INTERCOMS, DOMAIN
+
+# Префикс идентификатора устройства в реестре Home Assistant. По нему
+# интеграция узнаёт свои устройства при удалении и находит номер домофона.
+DEVICE_ID_PREFIX = "ufanet_doorphone_"
 
 # Поля Intercom, которые интеграция уже использует в логике (название устройства,
 # DeviceInfo.model, доступность сущности) или которые уже отдаются отдельными
@@ -70,7 +74,7 @@ class DoorPhoneDevice:
     @property
     def device_id(self) -> str:
         """Идентификатор устройства в реестре устройств Home Assistant."""
-        return f"ufanet_doorphone_{self.intercom.id}"
+        return f"{DEVICE_ID_PREFIX}{self.intercom.id}"
 
     @property
     def name(self) -> str:
@@ -107,3 +111,27 @@ class DoorPhoneDevice:
 def create_devices(intercoms: List[Intercom]) -> List[DoorPhoneDevice]:
     """Обернуть домофоны из API в устройства интеграции."""
     return [DoorPhoneDevice(intercom) for intercom in intercoms]
+
+
+def intercom_id_from_identifiers(
+    identifiers: Iterable[Tuple[str, str]],
+) -> Optional[int]:
+    """Достать номер домофона из идентификаторов устройства Home Assistant."""
+    for domain, identifier in identifiers:
+        if domain != DOMAIN or not identifier.startswith(DEVICE_ID_PREFIX):
+            continue
+        try:
+            return int(identifier[len(DEVICE_ID_PREFIX):])
+        except ValueError:
+            continue
+    return None
+
+
+def excluded_intercom_ids(options: Mapping[str, Any]) -> set[int]:
+    """Домофоны, которые пользователь исключил из Home Assistant."""
+    raw = options.get(CONF_EXCLUDED_INTERCOMS, [])
+    return {
+        value
+        for value in raw
+        if isinstance(value, int) and not isinstance(value, bool)
+    }

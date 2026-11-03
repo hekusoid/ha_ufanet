@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 
 from . import UfanetDoorPhoneData
 from .const import CONF_PASSWORD, CONF_USERNAME, DOMAIN
+from .device import excluded_intercom_ids
 
 TO_REDACT = {CONF_PASSWORD}
 
@@ -34,6 +35,7 @@ async def async_get_config_entry_diagnostics(
             },
             "version": entry.version,
         },
+        "excluded_intercoms": sorted(excluded_intercom_ids(entry.options)),
         "coordinator": {
             "last_update_success": data.coordinator.last_update_success,
             "update_interval_seconds": (

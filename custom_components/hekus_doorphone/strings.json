@@ -27,6 +27,21 @@
       "reauth_successful": "Re-authentication was successful."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Door phones",
+        "description": "Clear a door phone to hide it and its entities in Home Assistant. The device stays in the device registry: to remove it completely, open the device page and press \"Delete\" — after that the integration will not create it again.",
+        "data": {
+          "enabled_intercoms": "Connected door phones"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "The integration is not loaded. Reload it and try again.",
+      "no_devices": "No door phones found in the Ufanet account."
+    }
+  },
   "entity": {
     "image": {
       "last_call": {

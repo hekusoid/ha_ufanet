@@ -6,6 +6,14 @@ NAME = "Hekus DoorPhone"
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 
+# Домофоны, исключённые пользователем: после удаления устройства из реестра
+# Home Assistant интеграция не создаёт его заново. Список пополняется только
+# вручную — при удалении устройства или снятии галочки в опциях.
+CONF_EXCLUDED_INTERCOMS = "excluded_intercoms"
+
+# Поле формы опций: какие домофоны подключать к Home Assistant
+CONF_ENABLED_INTERCOMS = "enabled_intercoms"
+
 # Интервал опроса списка домофонов, в секундах
 DEFAULT_SCAN_INTERVAL = 300
 
