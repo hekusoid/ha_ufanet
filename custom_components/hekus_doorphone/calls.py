@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Collection, Dict, List, Optional
@@ -24,6 +25,7 @@ from .const import (
     CALL_HISTORY_LINK_ATTEMPTS,
     CALL_HISTORY_PAGE_SIZE,
     CALL_HISTORY_SCAN_INTERVAL,
+    CALL_LINK_TTL_SECONDS,
     DOMAIN,
 )
 
@@ -154,6 +156,7 @@ class CallHistoryCoordinator(DataUpdateCoordinator[Dict[str, CallHistory]]):
             )
         )
         self._links: Dict[str, HistoryData] = {}
+        self._link_obtained_at: Dict[str, float] = {}
         self._link_failures: Dict[str, int] = {}
         self._unmatched_logged: set[str] = set()
 
@@ -225,6 +228,11 @@ class CallHistoryCoordinator(DataUpdateCoordinator[Dict[str, CallHistory]]):
         self._links = {
             uuid: links for uuid, links in self._links.items() if uuid in uuids
         }
+        self._link_obtained_at = {
+            uuid: obtained_at
+            for uuid, obtained_at in self._link_obtained_at.items()
+            if uuid in uuids
+        }
         self._link_failures = {
             uuid: attempts
             for uuid, attempts in self._link_failures.items()
@@ -233,20 +241,32 @@ class CallHistoryCoordinator(DataUpdateCoordinator[Dict[str, CallHistory]]):
         self._unmatched_logged &= uuids
 
     async def _async_ensure_links(self, call: HistoryResult) -> None:
-        """Получить ссылки на запись и превью, если их ещё нет в кэше.
+        """Получить ссылки на запись и превью, если их нет или они устарели.
 
         Запись звонка появляется не сразу, поэтому неудачные попытки
         повторяются при следующих опросах, но не больше
-        ``CALL_HISTORY_LINK_ATTEMPTS`` раз на вызов.
+        ``CALL_HISTORY_LINK_ATTEMPTS`` раз на вызов. Ссылки подписаны JWT со
+        сроком жизни около часа, поэтому после ``CALL_LINK_TTL_SECONDS`` они
+        запрашиваются заново, даже если вызов остался последним.
         """
-        if call.uuid in self._links:
+        obtained_at = self._link_obtained_at.get(call.uuid)
+        if (
+            call.uuid in self._links
+            and obtained_at is not None
+            and time.monotonic() - obtained_at < CALL_LINK_TTL_SECONDS
+        ):
             return
 
-        if self._link_failures.get(call.uuid, 0) >= CALL_HISTORY_LINK_ATTEMPTS:
+        if (
+            call.uuid not in self._links
+            and self._link_failures.get(call.uuid, 0) >= CALL_HISTORY_LINK_ATTEMPTS
+        ):
             return
 
         try:
             self._links[call.uuid] = await self._api.get_call_history_links(call.uuid)
+            self._link_obtained_at[call.uuid] = time.monotonic()
+            self._link_failures.pop(call.uuid, None)
         except UnauthorizedUfanetIntercomAPIError as err:
             raise ConfigEntryAuthFailed(
                 f"Токен Ufanet для договора {self._username} больше не действителен"

@@ -2,7 +2,7 @@
 
 > Читать первым при любом анализе проекта: файл заменяет повторное сканирование
 > репозитория. Обновлять при добавлении, удалении или переименовании модулей.
-> Снимок состояния: 2026-11-16, версия интеграции 0.8.0, HEAD `ab3842c`.
+> Снимок состояния: 2026-11-16, версия интеграции 0.9.0, HEAD `ab3842c`.
 
 ## 1. Что это за проект
 
@@ -39,9 +39,9 @@ HACS-интеграция «Hekus DoorPhone» (домен `hekus_doorphone`) д�
 | Файл | Назначение | Ключевые символы | Строк |
 | --- | --- | --- | --- |
 | `__init__.py` | setup/unload записи, два координатора, хук удаления устройства | `UfanetDoorPhoneData`, `PLATFORMS`, `async_remove_config_entry_device` | 182 |
-| `const.py` | все константы интеграции | `DEFAULT_SCAN_INTERVAL`, `UNLOCK_COOLDOWN`, `CALL_*`, `CONF_*` | 33 |
+| `const.py` | все константы интеграции | `DEFAULT_SCAN_INTERVAL`, `UNLOCK_COOLDOWN`, `CALL_*`, `CONF_*` | 51 |
 | `device.py` | описание устройства домофона | `DoorPhoneDevice`, `DEVICE_ID_PREFIX`, `excluded_intercom_ids` | 110 |
-| `calls.py` | опрос истории вызовов, подготовка данных | `CallHistoryCoordinator`, `CallHistory`, `call_datetime`, `ATTR_*` | 222 |
+| `calls.py` | опрос истории вызовов, подготовка данных | `CallHistoryCoordinator`, `CallHistory`, `call_datetime`, `ATTR_*` | 283 |
 | `config_flow.py` | user/reauth/reconfigure/options | `UfanetDoorPhoneConfigFlow`, `UfanetDoorPhoneOptionsFlow`, `validate_credentials` | 347 |
 | `lock.py` | платформа lock, защита от повторного открытия | `DoorPhoneLock` | 139 |
 | `sensor.py` | платформа sensor — последний вызов | `LastCallSensor` | 96 |
@@ -85,7 +85,9 @@ HACS-интеграция «Hekus DoorPhone» (домен `hekus_doorphone`) д�
   совпадает с `normalize_camera_number(device.cctv_number)`;
 - последний вызов — `max(calls, key=call_datetime)`; ссылки на запись и превью
   (`get_call_history_links`) запрашиваются только для него, кэш `_links`, лимит
-  попыток `CALL_HISTORY_LINK_ATTEMPTS = 3`, неудачные попытки повторяются при опросах;
+  попыток `CALL_HISTORY_LINK_ATTEMPTS = 3`, неудачные попытки повторяются при
+  опросах; ссылки подписаны JWT и живут ~1 час, поэтому после
+  `CALL_LINK_TTL_SECONDS = 1800` с они перезапрашиваются заново;
 - `called_at` без смещения получает часовой пояс из поля `timezone` самого вызова.
 
 API-клиент (`api/ufanet_api.py`):
