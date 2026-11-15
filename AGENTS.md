@@ -2,7 +2,7 @@
 
 > Читать первым при любом анализе проекта: файл заменяет повторное сканирование
 > репозитория. Обновлять при добавлении, удалении или переименовании модулей.
-> Снимок состояния: 2026-11-16, версия интеграции 0.6.0, HEAD `ab3842c`.
+> Снимок состояния: 2026-11-16, версия интеграции 0.7.0, HEAD `ab3842c`.
 
 ## 1. Что это за проект
 
@@ -42,14 +42,14 @@ HACS-интеграция «Hekus DoorPhone» (домен `hekus_doorphone`) д�
 | `const.py` | все константы интеграции | `DEFAULT_SCAN_INTERVAL`, `UNLOCK_COOLDOWN`, `CALL_*`, `CONF_*` | 33 |
 | `device.py` | описание устройства домофона | `DoorPhoneDevice`, `DEVICE_ID_PREFIX`, `excluded_intercom_ids` | 110 |
 | `calls.py` | опрос истории вызовов, подготовка данных | `CallHistoryCoordinator`, `CallHistory`, `call_datetime`, `ATTR_*` | 222 |
-| `config_flow.py` | user/reauth/reconfigure/options | `UfanetDoorPhoneConfigFlow`, `UfanetDoorPhoneOptionsFlow`, `validate_credentials` | 334 |
+| `config_flow.py` | user/reauth/reconfigure | `UfanetDoorPhoneConfigFlow`, `validate_credentials` | 341 |
 | `lock.py` | платформа lock, защита от повторного открытия | `DoorPhoneLock` | 139 |
 | `sensor.py` | платформа sensor — последний вызов | `LastCallSensor` | 96 |
 | `image.py` | платформа image — кадр превью через ffmpeg | `LastCallImage`, `_async_get_ffmpeg_binary` | 207 |
 | `diagnostics.py` | выгрузка диагностики без пароля | `async_get_config_entry_diagnostics` | 71 |
 | `manifest.json` | версия, зависимости, метаданные интеграции | — | 12 |
-| `strings.json` | источник переводов (английский) | — | 89 |
-| `translations/en.json`, `translations/ru.json` | локали | — | ~89 |
+| `strings.json` | источник переводов (английский) | — | 74 |
+| `translations/en.json`, `translations/ru.json` | локали | — | ~74 |
 | `api/__init__.py` | докстринг-маркер пакета, чтобы `scripts/` импортировал `api.*` | — | 1 |
 | `api/ufanet_api.py` | асинхронный клиент dom.ufanet.ru | `UfanetIntercomAPI`, `BASE_URL`, пути эндпоинтов | 205 |
 | `api/models.py` | pydantic-модели ответов API | `Intercom`, `Camera`, `History`, `HistoryData`, `Token` | 104 |
@@ -121,11 +121,11 @@ API-клиент (`api/ufanet_api.py`):
     `async_update_reload_and_abort(entry, data_updates=..., reason="reconfigure_successful")`.
     Дубли `unique_id` проверяются вручную по `_async_current_entries()`: стандартный
     `_abort_if_unique_id_configured()` нашёл бы саму изменяемую запись.
-  - `devices`: та же схема и селектор, что в options flow (`_options_schema`),
-    записывает `CONF_EXCLUDED_INTERCOMS` в options и перезагружает запись.
+  - `devices`: та же схема и селектор (`_options_schema`), записывает
+    `CONF_EXCLUDED_INTERCOMS` в options и перезагружает запись.
 - Смена учётных данных не трогает options и реестр устройств — добавление и удаление
   устройств продолжают работать как раньше.
-- Исключённые домофоны (`excluded_intercoms` в options) пополняются меню/опциями и хуком
+- Исключённые домофоны (`excluded_intercoms` в options) пополняются меню перенастройки и хуком
   `async_remove_config_entry_device`; вычитание отмеченных делает общий хелпер
   `_excluded_from_selection`.
 - Причины аборта: `already_configured`, `reauth_successful`, `reconfigure_successful`,
@@ -141,7 +141,6 @@ API-клиент (`api/ufanet_api.py`):
   поддержка 2024.4 — обновлять запись через `hass.config_entries.async_update_entry`
   + `async_reload` и завершать поток через `async_abort(reason="reconfigure_successful")`.
 - Обходы для старых версий, которые уже есть в коде и не надо «улучшать»:
-  - `OptionsFlow.config_entry` в 2024.4 нет → запись берётся по `self.handler`;
   - в reconfigure запись берётся по `self.context["entry_id"]` в свойстве
     `_entry_to_reconfigure` (метода `_get_reconfigure_entry()` в старых версиях нет);
   - `title`/`unique_id` обновляются через `hass.config_entries.async_update_entry`,
@@ -171,7 +170,7 @@ API-клиент (`api/ufanet_api.py`):
 
 - `strings.json` — источник на английском; `translations/en.json` обязан совпадать
   с ним по структуре, `translations/ru.json` — русская локализация.
-- Новые `config.step.*`, `config.error.*`, `config.abort.*`, `options.*`, `entity.*`
+- Новые `config.step.*`, `config.error.*`, `config.abort.*`, `entity.*`
   добавлять во все три файла одновременно, ключи держать в одинаковом порядке.
 - `menu_options` описывается в переводе шага `reconfigure`.
 
@@ -212,8 +211,9 @@ python scripts/ufanet_api_example.py --debug   # плюс журнал HTTP-за
   в этой среде нельзя: опираемся на `compileall` и ручной прогон в Home Assistant.
 - После правок переводов проверять паритет ключей (одинаковый набор путей в трёх файлах)
   и наличие перевода для каждого `step_id`/`reason`, использованного в config flow.
-- Функциональная проверка — ручная в Home Assistant: карточка интеграции → «Настроить»
-  (меню, форма учётных данных, домофоны), reauth, кнопка «Удалить» в карточке устройства.
+- Функциональная проверка — ручная в Home Assistant: карточка интеграции → ⋮ →
+  «Перенастроить» (меню, форма учётных данных, домофоны), reauth, кнопка «Удалить»
+  в карточке устройства.
 
 ## 10. Реальный Home Assistant — только чтение
 
@@ -227,7 +227,7 @@ python scripts/ufanet_api_example.py --debug   # плюс журнал HTTP-за
 - Запрещено без явного разрешения пользователя: `POST /api/services/*` (вызов
   сервисов, включая `lock.unlock`), запись состояний, `/api/restart`,
   `/api/config/core/check_config`, `check_config`, любой config flow (кнопки
-  «Настроить», reauth, reconfigure, options), reload/fetch записей,
+  «Настроить», reauth, reconfigure), reload/fetch записей,
   HACS-установки и обновления, правки файлов в `/config` хоста HA, команды
   `docker`/`ha`/`hass` на хосте HA.
 - Категорически нельзя на реальном договоре: `open_intercom()` — открытие двери.

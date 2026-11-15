@@ -10,9 +10,8 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
-    OptionsFlow,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -148,12 +147,6 @@ class UfanetDoorPhoneConfigFlow(ConfigFlow, domain=DOMAIN):
     """Поток настройки Ufanet Door Phone."""
 
     VERSION = 1
-
-    @staticmethod
-    @callback
-    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        """Создать поток опций: выбор домофонов аккаунта."""
-        return UfanetDoorPhoneOptionsFlow()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -345,47 +338,4 @@ class UfanetDoorPhoneConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "username": str(entry.data.get(CONF_USERNAME, ""))
             },
-        )
-
-
-class UfanetDoorPhoneOptionsFlow(OptionsFlow):
-    """Выбор домофонов аккаунта, подключённых к Home Assistant."""
-
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Показать список домофонов аккаунта и сохранить выбор."""
-        # В Home Assistant 2024.4 у OptionsFlow ещё нет свойства config_entry,
-        # поэтому запись достаём по идентификатору обработчика: он совпадает
-        # с entry_id (см. OptionsFlowManager.async_create_flow).
-        entry = self.hass.config_entries.async_get_entry(self.handler)
-        if entry is None:
-            return self.async_abort(reason="not_loaded")
-
-        data: UfanetDoorPhoneData | None = self.hass.data.get(DOMAIN, {}).get(
-            entry.entry_id
-        )
-        if data is None:
-            return self.async_abort(reason="not_loaded")
-
-        intercoms = list((data.coordinator.data or {}).values())
-        if not intercoms:
-            return self.async_abort(reason="no_devices")
-
-        if user_input is not None:
-            excluded = _excluded_from_selection(
-                intercoms, user_input[CONF_ENABLED_INTERCOMS]
-            )
-            return self.async_create_entry(
-                data={
-                    **entry.options,
-                    CONF_EXCLUDED_INTERCOMS: excluded,
-                }
-            )
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=_options_schema(
-                intercoms, excluded_intercom_ids(entry.options)
-            ),
         )
