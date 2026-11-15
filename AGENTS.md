@@ -2,7 +2,7 @@
 
 > Читать первым при любом анализе проекта: файл заменяет повторное сканирование
 > репозитория. Обновлять при добавлении, удалении или переименовании модулей.
-> Снимок состояния: 2026-11-16, версия интеграции 0.6.0, HEAD `5c8c14b`.
+> Снимок состояния: 2026-11-16, версия интеграции 0.6.0, HEAD `ab3842c`.
 
 ## 1. Что это за проект
 
@@ -26,7 +26,12 @@ HACS-интеграция «Hekus DoorPhone» (домен `hekus_doorphone`) д�
 | `README.md` | единственная документация (русский), её рендерит HACS |
 | `hacs.json`, `info.md` | метаданные HACS, `homeassistant: 2024.11.0` — держать синхронно |
 | `icon.png` | иконка репозитория |
-| `scripts/ufanet_api_example.py` | автономная проверка API без Home Assistant |
+| `.gitignore` | игнорирует `.env`, `__pycache__`, `.venv` — секреты не коммитить |
+| `.env.example` | шаблон локальных доступов с пустыми значениями, в git |
+| `.env` | **локальные секреты, в git не попадает** (см. раздел 10) |
+| `scripts/ufanet_api_example.py` | автономная проверка API Ufanet без HA, только чтение |
+| `scripts/ha_readonly_check.py` | проверка реального HA только GET-запросами |
+| `images/` | пустой локальный каталог, в git не отслеживается |
 | `AGENTS.md` | этот файл |
 
 `custom_components/hekus_doorphone/`:
@@ -45,6 +50,7 @@ HACS-интеграция «Hekus DoorPhone» (домен `hekus_doorphone`) д�
 | `manifest.json` | версия, зависимости, метаданные интеграции | — | 12 |
 | `strings.json` | источник переводов (английский) | — | 89 |
 | `translations/en.json`, `translations/ru.json` | локали | — | ~89 |
+| `api/__init__.py` | докстринг-маркер пакета, чтобы `scripts/` импортировал `api.*` | — | 1 |
 | `api/ufanet_api.py` | асинхронный клиент dom.ufanet.ru | `UfanetIntercomAPI`, `BASE_URL`, пути эндпоинтов | 205 |
 | `api/models.py` | pydantic-модели ответов API | `Intercom`, `Camera`, `History`, `HistoryData`, `Token` | 104 |
 | `api/exceptions.py` | исключения клиента | `UfanetIntercomAPIError` и 6 наследников | 15 |
@@ -140,6 +146,12 @@ API-клиент (`api/ufanet_api.py`):
     `_entry_to_reconfigure` (метода `_get_reconfigure_entry()` в старых версиях нет);
   - `title`/`unique_id` обновляются через `hass.config_entries.async_update_entry`,
     а не параметрами `async_update_reload_and_abort`.
+- Проверено по исходникам HA 2026.11.1 (`homeassistant/config_entries.py` из
+  wheel на PyPI): `async_update_reload_and_abort` по-прежнему декорирован
+  `@callback` и принимает `unique_id/title/data/data_updates/options/reason/
+  reload_even_if_entry_is_unchanged`, поэтому вызов без `await` корректен.
+  Реальный HA в сети — 2026.11.1, интеграция загружается целиком
+  (`hekus_doorphone.lock/sensor/image`).
 
 ## 6. Правила кода
 
@@ -178,7 +190,21 @@ API-клиент (`api/ufanet_api.py`):
 # PowerShell не раскрывает маску *.py для python — компилируем каталог целиком
 python -m compileall -q custom_components/hekus_doorphone; "compileall exit=$LASTEXITCODE"
 python -c "import json; [json.load(open(p,encoding='utf-8')) for p in ['custom_components/hekus_doorphone/strings.json','custom_components/hekus_doorphone/translations/en.json','custom_components/hekus_doorphone/translations/ru.json']]; print('json ok')"
+
+# реальный Home Assistant: только GET /api/, /api/config, /api/states
+python scripts/ha_readonly_check.py
+# API Ufanet без Home Assistant: домофоны, камеры, история; дверь не открывается
+python scripts/ufanet_api_example.py
+python scripts/ufanet_api_example.py --debug   # плюс журнал HTTP-запросов
 ```
+
+- Оба скрипта читают доступы из `.env` в корне репозитория (уже заданные переменные
+  окружения приоритетнее) и требуют только `aiohttp`/`pydantic`; секреты в вывод не
+  печатают. Кириллицу в консоли Windows надёжнее смотреть так:
+  `[Console]::OutputEncoding=[Text.Encoding]::UTF8; $env:PYTHONIOENCODING='utf-8'`.
+- `ha_readonly_check.py` печатает версию ядра, список компонентов интеграции и все её
+  сущности. Сущности в `unavailable`/`unknown` в конце отчёта — обычно «остатки» старых
+  версий интеграции (см. раздел 13), а не текущая ошибка.
 
 - `compileall` создаёт каталоги `__pycache__` (они в `.gitignore`) — после проверки их
   можно удалить, в коммит они не попадают.
@@ -189,21 +215,72 @@ python -c "import json; [json.load(open(p,encoding='utf-8')) for p in ['custom_c
 - Функциональная проверка — ручная в Home Assistant: карточка интеграции → «Настроить»
   (меню, форма учётных данных, домофоны), reauth, кнопка «Удалить» в карточке устройства.
 
-## 10. Git-правила
+## 10. Реальный Home Assistant — только чтение
+
+В сети работает настоящий Home Assistant пользователя с загруженной интеграцией и
+живыми устройствами. Любая ошибка видна на реальном доме, поэтому по умолчанию
+разрешены только операции чтения.
+
+- Разрешено без спроса: `GET /api/`, `GET /api/config`, `GET /api/states`,
+  `GET /api/services`, `GET /api/history/period/<ts>`, WebSocket `system_log/list`,
+  `scripts/ha_readonly_check.py`.
+- Запрещено без явного разрешения пользователя: `POST /api/services/*` (вызов
+  сервисов, включая `lock.unlock`), запись состояний, `/api/restart`,
+  `/api/config/core/check_config`, `check_config`, любой config flow (кнопки
+  «Настроить», reauth, reconfigure, options), reload/fetch записей,
+  HACS-установки и обновления, правки файлов в `/config` хоста HA, команды
+  `docker`/`ha`/`hass` на хосте HA.
+- Категорически нельзя на реальном договоре: `open_intercom()` — открытие двери.
+- Компиляция и проверки выполняются локально (`compileall` в репозитории), в HA не
+  запускаются: `compileall` внутри `/config` создаёт `__pycache__`.
+- Сценарии, меняющие состояние (меню перенастройки, reauth, «Удалить» в карточке
+  устройства), выполняет пользователь руками и сообщает результат; агент их не
+  инициирует.
+
+### Секреты
+
+- Договор, пароль Ufanet, адрес HA и токен живут только в локальном `.env`
+  (он в `.gitignore`); в репозитории — только `.env.example` с пустыми значениями.
+- Секреты не печатать в чат, логи, коммит-сообщения, диагностику и вывод скриптов;
+  в отчётах маскировать (`UFANET_PASSWORD=***`).
+- Токен HA — долгоживущий JWT (срок ~10 лет). После работ его стоит отозвать и
+  выпустить новый, желательно для отдельного пользователя с правами только на чтение.
+- При добавлении новых ключей обновлять `.env.example` и этот раздел.
+
+### Факты об окружении
+
+- Реальный HA: `https://192.168.1.100:8123`, версия 2026.11.1, TZ
+  `Asia/Yekaterinburg`; сертификат самоподписанный, поэтому `HA_VERIFY_SSL=0`.
+- `homeassistant.local` с Windows не резолвится (mDNS выключен, роутер
+  `router.lan` 192.168.1.1 отвечает «несуществующий домен») — обращаться по IP.
+- `GET /api/error_log` в 2026.11.1 отвечает 404: журнал ошибок доступен только по
+  WebSocket (`system_log/list`), поэтому в `ha_readonly_check.py` его нет.
+- На реальном аккаунте 4 замка; у трёх домофонов с камерой создаются датчик и превью.
+  В `/api/states` остаются `unavailable`/`unknown` сущности прежних версий
+  (`image.ufanet_*`, `sensor.ufanet_*`): записи реестра не переименовываются.
+
+## 11. Git-правила
 
 - Коммит делать только по явной просьбе пользователя; после коммита дальше не коммитить.
 - Сообщения на русском: короткий заголовок в императиве, при необходимости — тело
   маркированным списком (см. коммит `5c8c14b`).
 - В рабочей копии файлы с CRLF, в индексе LF — предупреждения
   «CRLF will be replaced by LF» ожидаемы, настройки git не менять.
-- `scripts/ufanet_api_example.py` может содержать локальные отладочные правки
-  (`logging.DEBUG`, закомментированные вызовы) — в коммиты их не включать.
+- `scripts/ufanet_api_example.py` содержит только штатный код: подробный журнал
+  включается флагом `--debug`. Локальные отладочные правки (закомментированные
+  вызовы, `logging.DEBUG`) в коммиты не включать; `.env` не добавлять в git
+  никогда.
 - Перед любой git-операцией смотреть `git status`: в рабочей копии могут быть
   чужие незакоммиченные изменения.
 
-## 11. Окружение и инструменты
+## 12. Окружение и инструменты
 
-- ОС Windows, оболочка PowerShell (`powershell.exe`), кодировка консоли ломает кириллицу.
+- Локально: Windows, PowerShell (`powershell.exe`), Python 3.12.10, `aiohttp` 3.9.5,
+  `pydantic` 2.11.9; пакет `homeassistant` не установлен (он же требует Python 3.13.2
+  начиная с 2025.2).
+- Кодировка консоли ломает кириллицу; вывод скриптов надёжнее смотреть через
+  `[Console]::OutputEncoding=[Text.Encoding]::UTF8` и `$env:PYTHONIOENCODING='utf-8'`,
+  а перенаправлять в файл через `| Out-File -Encoding utf8` (оператор `>` пишет UTF-16).
 - Вывод git в терминале может отображаться как мусор — проверять содержимое через
   `Start-Process -FilePath git -ArgumentList ... -RedirectStandardOutput файл` и читать файл.
 - В Plan mode запись в репозиторий запрещена, включая `Out-File` внутри проекта;
@@ -211,12 +288,19 @@ python -c "import json; [json.load(open(p,encoding='utf-8')) for p in ['custom_c
 - Для правок файлов использовать редактор с UTF-8 без BOM; коммит-сообщения при
   необходимости передавать через файл и `git commit -F`.
 
-## 12. Открытые вопросы и известные особенности
+## 13. Открытые вопросы и известные особенности
 
 - Подтвердить минимальную версию HA 2024.11.0 (альтернатива — убрать `data_updates=`
   и опустить планку до 2024.4).
+- Реальный HA — 2026.11.1. Сигнатуры HA сверять по исходникам с PyPI, потому что
+  `pip download homeassistant` локально невозможен (нужен Python ≥ 3.13.2):
+  `urllib.request` + `zipfile` читают нужный файл из wheel без установки.
+- В реестре сущностей остаются `entity_id` прежних версий интеграции
+  (`image.ufanet_*`, `sensor.ufanet_*`): переименование записей HA не делает,
+  лишние сущности удаляются только вручную в UI.
 - `custom_components/hekus_doorphone/README.md` пуст: HACS использует корневой `README.md`.
-- Автотестов нет; регрессии ловятся только ручной проверкой и `compileall`.
+- Автотестов нет; регрессии ловятся только ручной проверкой, `compileall` и
+  `scripts/ha_readonly_check.py`.
 - `custom_components/hekus_doorphone/` содержит `icon.png` и `logo.png` для HACS-брендинга.
 
 

@@ -84,17 +84,37 @@ logger:
 
 Скрипт `scripts/ufanet_api_example.py` авторизуется тем же способом, что и интеграция,
 и печатает список домофонов, камер видеонаблюдения с RTSP-ссылками и последние вызовы
-домофона со ссылками на превью и запись.
-Установленный Home Assistant не нужен — достаточно зависимостей клиента:
+домофона со ссылками на превью и запись. Дверь скрипт не открывает — он только читает
+данные. Установленный Home Assistant не нужен — достаточно зависимостей клиента:
 
 ```powershell
 pip install aiohttp pydantic
 ```
 
-Учётные данные берутся из переменных окружения:
+Учётные данные берутся из локального файла `.env` в корне репозитория (он в
+`.gitignore`, шаблон — `.env.example`) или из переменных окружения, которые важнее
+файла:
 
 ```powershell
 $env:UFANET_CONTRACT="номер договора"
 $env:UFANET_PASSWORD="пароль"
 python scripts/ufanet_api_example.py
+```
+
+Подробный журнал HTTP-запросов включается флагом `--debug`:
+
+```powershell
+python scripts/ufanet_api_example.py --debug
+```
+
+## Проверка установленного Home Assistant (только чтение)
+
+Скрипт `scripts/ha_readonly_check.py` обращается к REST API Home Assistant только
+GET-запросами (`/api/`, `/api/config`, `/api/states`) и печатает версию ядра,
+загруженные компоненты интеграции и состояние её сущностей. Ничего не меняет и
+сервисы не вызывает.
+
+```powershell
+# HA_URL, HA_TOKEN и HA_VERIFY_SSL=0 (самоподписанный сертификат) — в .env
+python scripts/ha_readonly_check.py
 ```

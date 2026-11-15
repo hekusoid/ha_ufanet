@@ -1,3 +1,11 @@
 __pycache__/
 *.py[cod]
 .venv/
+
+# Локальные секреты: договор и пароль Ufanet, адрес и токен Home Assistant.
+# В репозитории лежит только шаблон .env.example с пустыми значениями.
+.env
+.env.*
+!.env.example
+*.local.env
+secrets*.json

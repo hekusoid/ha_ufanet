@@ -4,18 +4,22 @@
 видеонаблюдения с RTSP-ссылками и последние вызовы домофона. Home Assistant не
 требуется: нужны только aiohttp и pydantic (``pip install aiohttp pydantic``).
 
-Учётные данные берутся из переменных окружения, в коде их быть не должно:
+Учётные данные берутся из файла .env в корне репозитория (он в .gitignore) или
+из переменных окружения; переменные окружения приоритетнее:
 
-    PowerShell:
-        $env:UFANET_CONTRACT="12345678"
-        $env:UFANET_PASSWORD="secret"
-        python scripts/ufanet_api_example.py
+    # .env
+    UFANET_CONTRACT=12345678
+    UFANET_PASSWORD=secret
 
-    bash:
-        UFANET_CONTRACT=12345678 UFANET_PASSWORD=secret python scripts/ufanet_api_example.py
+    python scripts/ufanet_api_example.py            # только итоги
+    python scripts/ufanet_api_example.py --debug    # плюс журнал запросов
+
+Скрипт только читает данные: домофоны, камеры и историю вызовов. Дверь он не
+открывает — open_intercom() здесь сознательно не вызывается.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
 import os
@@ -28,7 +32,27 @@ from pathlib import Path
 INTEGRATION_DIR = (
     Path(__file__).resolve().parent.parent / "custom_components" / "hekus_doorphone"
 )
+REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(INTEGRATION_DIR))
+
+
+def load_dotenv(path: Path) -> None:
+    """Заполнить окружение значениями из .env, не перетирая уже заданные."""
+    if not path.is_file():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        # Переменная, выставленная в оболочке, важнее содержимого файла.
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+load_dotenv(REPO_ROOT / ".env")
 
 try:
     from api.exceptions import (  # noqa: E402
@@ -42,11 +66,25 @@ except ModuleNotFoundError as err:
         "Установите зависимости командой: pip install aiohttp pydantic"
     ) from err
 
-logging.basicConfig(level=logging.INFO)
 _LOGGER = logging.getLogger("UfanetIntercom")
 
 # Сколько последних вызовов печатать
 CALLS_PAGE_SIZE = 5
+
+
+def _configure_logging() -> None:
+    """Включить подробный журнал только по флагу --debug."""
+    parser = argparse.ArgumentParser(
+        description="Проверка API Ufanet без Home Assistant (только чтение)."
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="печатать журнал HTTP-запросов"
+    )
+    args = parser.parse_args()
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
 
 async def main() -> int:
@@ -92,7 +130,11 @@ async def main() -> int:
     else:
         print("Найдены следующие домофоны:")
         for intercom in intercoms:
-            print(f"  {intercom.string_view} ({intercom.role.name})")
+            camera_number = intercom.cctv_number or "нет камеры"
+            print(
+                f"  {intercom.string_view} ({intercom.role.name}), "
+                f"камера: {camera_number}"
+            )
 
     if not cameras:
         print("Камеры не найдены.")
@@ -118,12 +160,13 @@ async def main() -> int:
                 print(f"    превью: {links.preview}")
                 print(f"    запись: {links.url}")
 
-    # Домофоны возвращает метод api.get_intercoms(), дверь открывается
-    # методом api.open_intercom(intercom_id) — например, для первого домофона
-    # из списка: api.open_intercom(intercoms[0].id).
+    # Домофоны возвращает метод api.get_intercoms(), дверь открывается методом
+    # api.open_intercom(intercom_id). На реальном договоре дверь этим скриптом не
+    # открывать: он предназначен только для чтения данных.
 
     return 0
 
 
 if __name__ == "__main__":
+    _configure_logging()
     raise SystemExit(asyncio.run(main()))
