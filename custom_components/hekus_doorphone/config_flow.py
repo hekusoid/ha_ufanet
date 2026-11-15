@@ -10,8 +10,9 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    OptionsFlow,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -148,6 +149,12 @@ class UfanetDoorPhoneConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        """Создать поток опций: выбор домофонов аккаунта."""
+        return UfanetDoorPhoneOptionsFlow()
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -192,23 +199,17 @@ class UfanetDoorPhoneConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Показать меню перенастройки интеграции."""
+        """Сразу запросить новые учётные данные без промежуточного меню."""
         entry = self._entry_to_reconfigure
         if entry is None:
             return self.async_abort(reason="unknown")
 
-        return self.async_show_menu(
-            step_id="reconfigure",
-            menu_options=["credentials", "devices"],
-            description_placeholders={
-                "username": str(entry.data.get(CONF_USERNAME, ""))
-            },
-        )
+        return await self.async_step_credentials(user_input)
 
     async def async_step_credentials(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Пункт меню: сменить номер договора и пароль."""
+        """Сменить номер договора и пароль при перенастройке."""
         entry = self._entry_to_reconfigure
         if entry is None:
             return self.async_abort(reason="unknown")
@@ -259,44 +260,6 @@ class UfanetDoorPhoneConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_devices(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Пункт меню: включить или исключить домофоны аккаунта."""
-        entry = self._entry_to_reconfigure
-        if entry is None:
-            return self.async_abort(reason="unknown")
-
-        data: UfanetDoorPhoneData | None = self.hass.data.get(DOMAIN, {}).get(
-            entry.entry_id
-        )
-        if data is None:
-            return self.async_abort(reason="not_loaded")
-
-        intercoms = list((data.coordinator.data or {}).values())
-        if not intercoms:
-            return self.async_abort(reason="no_devices")
-
-        if user_input is not None:
-            excluded = _excluded_from_selection(
-                intercoms, user_input[CONF_ENABLED_INTERCOMS]
-            )
-            return self.async_update_reload_and_abort(
-                entry,
-                options={
-                    **entry.options,
-                    CONF_EXCLUDED_INTERCOMS: excluded,
-                },
-                reason="reconfigure_successful",
-            )
-
-        return self.async_show_form(
-            step_id="devices",
-            data_schema=_options_schema(
-                intercoms, excluded_intercom_ids(entry.options)
-            ),
-        )
-
     async def async_step_reauth(
         self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
@@ -338,4 +301,47 @@ class UfanetDoorPhoneConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "username": str(entry.data.get(CONF_USERNAME, ""))
             },
+        )
+
+
+class UfanetDoorPhoneOptionsFlow(OptionsFlow):
+    """Выбор домофонов аккаунта, подключённых к Home Assistant."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Показать список домофонов аккаунта и сохранить выбор."""
+        # В Home Assistant 2024.4 у OptionsFlow ещё нет свойства config_entry,
+        # поэтому запись достаём по идентификатору обработчика: он совпадает
+        # с entry_id (см. OptionsFlowManager.async_create_flow).
+        entry = self.hass.config_entries.async_get_entry(self.handler)
+        if entry is None:
+            return self.async_abort(reason="not_loaded")
+
+        data: UfanetDoorPhoneData | None = self.hass.data.get(DOMAIN, {}).get(
+            entry.entry_id
+        )
+        if data is None:
+            return self.async_abort(reason="not_loaded")
+
+        intercoms = list((data.coordinator.data or {}).values())
+        if not intercoms:
+            return self.async_abort(reason="no_devices")
+
+        if user_input is not None:
+            excluded = _excluded_from_selection(
+                intercoms, user_input[CONF_ENABLED_INTERCOMS]
+            )
+            return self.async_create_entry(
+                data={
+                    **entry.options,
+                    CONF_EXCLUDED_INTERCOMS: excluded,
+                }
+            )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=_options_schema(
+                intercoms, excluded_intercom_ids(entry.options)
+            ),
         )
