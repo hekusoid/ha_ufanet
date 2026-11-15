@@ -9,6 +9,29 @@
           "password": "Password"
         }
       },
+      "reconfigure": {
+        "title": "Ufanet Door Phone",
+        "description": "Contract {username}. Choose what you want to change.",
+        "menu_options": {
+          "credentials": "Contract number and password",
+          "devices": "Door phones"
+        }
+      },
+      "credentials": {
+        "title": "Contract number and password",
+        "description": "Enter the current contract number and password of your Ufanet account (dom.ufanet.ru).",
+        "data": {
+          "username": "Contract number",
+          "password": "Password"
+        }
+      },
+      "devices": {
+        "title": "Door phones",
+        "description": "Clear a door phone to hide it and its entities in Home Assistant. The device stays in the device registry: to remove it completely, open the device page and press \"Delete\" — after that the integration will not create it again.",
+        "data": {
+          "enabled_intercoms": "Connected door phones"
+        }
+      },
       "reauth_confirm": {
         "title": "Re-authenticate with Ufanet",
         "description": "The credentials for contract {username} are not valid anymore. Enter the current password.",
@@ -24,7 +47,11 @@
     },
     "abort": {
       "already_configured": "This contract number is already configured.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "reconfigure_successful": "The configuration was updated.",
+      "not_loaded": "The integration is not loaded. Check the contract number and password or reload the integration, then try again.",
+      "no_devices": "No door phones found in the Ufanet account.",
+      "unknown": "The configuration entry was not found."
     }
   },
   "options": {

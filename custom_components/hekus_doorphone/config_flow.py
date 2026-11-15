@@ -48,6 +48,28 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
+def _credentials_schema(credentials: Mapping[str, Any]) -> vol.Schema:
+    """Собрать форму учётных данных с подставленными текущими значениями."""
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_USERNAME, default=credentials.get(CONF_USERNAME, "")
+            ): str,
+            vol.Required(
+                CONF_PASSWORD, default=credentials.get(CONF_PASSWORD, "")
+            ): str,
+        }
+    )
+
+
+def _excluded_from_selection(
+    intercoms: List[Intercom], enabled_values: List[str]
+) -> List[int]:
+    """Домофоны аккаунта, снятые с галочки: их интеграция не создаёт."""
+    enabled = {int(value) for value in enabled_values}
+    return sorted({intercom.id for intercom in intercoms} - enabled)
+
+
 def _options_schema(intercoms: List[Intercom], excluded: set[int]) -> vol.Schema:
     """Собрать форму выбора домофонов для потока опций.
 
@@ -166,6 +188,122 @@ class UfanetDoorPhoneConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    @property
+    def _entry_to_reconfigure(self) -> ConfigEntry | None:
+        """Запись конфигурации, которую перенастраивает пользователь."""
+        entry_id = self.context.get("entry_id")
+        if entry_id is None:
+            return None
+        return self.hass.config_entries.async_get_entry(entry_id)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Показать меню перенастройки интеграции."""
+        entry = self._entry_to_reconfigure
+        if entry is None:
+            return self.async_abort(reason="unknown")
+
+        return self.async_show_menu(
+            step_id="reconfigure",
+            menu_options=["credentials", "devices"],
+            description_placeholders={
+                "username": str(entry.data.get(CONF_USERNAME, ""))
+            },
+        )
+
+    async def async_step_credentials(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Пункт меню: сменить номер договора и пароль."""
+        entry = self._entry_to_reconfigure
+        if entry is None:
+            return self.async_abort(reason="unknown")
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            username = user_input[CONF_USERNAME]
+
+            # _abort_if_unique_id_configured() в потоке перенастройки нашёл бы
+            # саму изменяемую запись, поэтому дубли проверяем вручную.
+            for other in self._async_current_entries():
+                if (
+                    other.entry_id != entry.entry_id
+                    and other.unique_id == username
+                ):
+                    return self.async_abort(reason="already_configured")
+
+            try:
+                await validate_credentials(self.hass, user_input)
+            except InvalidAuth as err:
+                _LOGGER.warning("Ошибка аутентификации в Ufanet: %s", err)
+                errors["base"] = "invalid_auth"
+            except CannotConnect as err:
+                _LOGGER.error("Не удалось подключиться к Ufanet API: %s", err)
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Неожиданная ошибка при проверке учётных данных")
+                errors["base"] = "unknown"
+            else:
+                # Меняем только учётные данные и заголовок записи. Опции
+                # (исключённые домофоны) и реестр устройств не трогаем:
+                # добавление и удаление устройств работают как раньше.
+                self.hass.config_entries.async_update_entry(
+                    entry,
+                    unique_id=username,
+                    title=f"Домофон Ufanet (договор №{username})",
+                )
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates=user_input,
+                    reason="reconfigure_successful",
+                )
+
+        return self.async_show_form(
+            step_id="credentials",
+            data_schema=_credentials_schema(user_input or entry.data),
+            errors=errors,
+        )
+
+    async def async_step_devices(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Пункт меню: включить или исключить домофоны аккаунта."""
+        entry = self._entry_to_reconfigure
+        if entry is None:
+            return self.async_abort(reason="unknown")
+
+        data: UfanetDoorPhoneData | None = self.hass.data.get(DOMAIN, {}).get(
+            entry.entry_id
+        )
+        if data is None:
+            return self.async_abort(reason="not_loaded")
+
+        intercoms = list((data.coordinator.data or {}).values())
+        if not intercoms:
+            return self.async_abort(reason="no_devices")
+
+        if user_input is not None:
+            excluded = _excluded_from_selection(
+                intercoms, user_input[CONF_ENABLED_INTERCOMS]
+            )
+            return self.async_update_reload_and_abort(
+                entry,
+                options={
+                    **entry.options,
+                    CONF_EXCLUDED_INTERCOMS: excluded,
+                },
+                reason="reconfigure_successful",
+            )
+
+        return self.async_show_form(
+            step_id="devices",
+            data_schema=_options_schema(
+                intercoms, excluded_intercom_ids(entry.options)
+            ),
+        )
+
     async def async_step_reauth(
         self, entry_data: Mapping[str, Any]
     ) -> ConfigFlowResult:
@@ -235,8 +373,9 @@ class UfanetDoorPhoneOptionsFlow(OptionsFlow):
             return self.async_abort(reason="no_devices")
 
         if user_input is not None:
-            enabled = {int(value) for value in user_input[CONF_ENABLED_INTERCOMS]}
-            excluded = sorted({intercom.id for intercom in intercoms} - enabled)
+            excluded = _excluded_from_selection(
+                intercoms, user_input[CONF_ENABLED_INTERCOMS]
+            )
             return self.async_create_entry(
                 data={
                     **entry.options,
